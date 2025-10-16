@@ -28,6 +28,14 @@ if "paso" not in st.session_state:
 if "archivo1_df" not in st.session_state:
     st.session_state.archivo1_df = None
 
+# Campo de entrada para el nombre del colegio (usado en los nombres de descarga)
+if "nombre_colegio" not in st.session_state:
+    st.session_state["nombre_colegio"] = ""
+st.session_state["nombre_colegio"] = st.text_input(
+    "Nombre del colegio",
+    value=st.session_state.get("nombre_colegio", "").strip()
+).strip()
+
 # ------------------------------------------------
 # 4. Función auxiliar: detección automática de cabecera
 # ------------------------------------------------
@@ -149,7 +157,11 @@ if st.session_state.archivo1_df is not None:
     st.download_button(
         label="⬇️ Descargar Archivo 1 Homologado",
         data=buffer,
-        file_name="archivo1_homologado.xlsx",
+        file_name=(
+            f"{st.session_state.get('nombre_colegio','').strip()}_nomina_RV.xlsx"
+            if st.session_state.get('nombre_colegio','').strip()
+            else "archivo1_homologado.xlsx"
+        ),
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
@@ -180,18 +192,8 @@ if st.session_state.paso == 2:
     # 2. Carga opcional del archivo de equivalencias (.txt)
     # ------------------------------------------------
     st.subheader("Equivalencias de Cursos (opcional)")
-    archivo_txt = st.file_uploader("Sube el archivo de equivalencias (.txt)", type=["txt"])
-
-    if archivo_txt is not None:
-        cursos_equivalentes = [
-            linea.strip().upper()
-            for linea in archivo_txt.readlines()
-            if linea.strip()
-        ]
-        st.success(f"Se cargaron {len(cursos_equivalentes)} cursos desde el archivo .txt.")
-    else:
-        # Lista oficial por defecto del Word
-        cursos_equivalentes = [
+    
+    cursos_equivalentes = [
             "ADOBE ILLUSTRATOR", "ADOBE INDESIGN", "ADOBE PHOTOSHOP PROFICIENT",
             "COACHING PERSONAL Y VOCACIONAL", "DE LA IDEA AL EMPRENDIMIENTO",
             "DESARROLLO DE APLICACIONES MÓVILES", "DESARROLLO WEB", "DISEÑO WEB",
@@ -204,7 +206,18 @@ if st.session_state.paso == 2:
             "PROGRAMACIÓN VISUAL KODU PLANET III", "ROBLOX FOR TEENS", "ROBÓTICA",
             "SCRATCH", "WORD EXPERT SPECIALIST", "WORD PROFICIENT SPECIALIST",
             "LEARNING FOR BEGINNERS 1", "LEARNING FOR BEGINNERS 2", "CODE FOR KIDS"
-        ]
+    ]
+
+    archivo_txt = st.file_uploader("Sube el archivo de equivalencias (.txt)", type=["txt"])
+
+    if archivo_txt is not None:
+        contenido_txt = archivo_txt.getvalue().decode("utf-8", errors="ignore")
+        nuevos_cursos = [linea.strip().upper() for linea in contenido_txt.splitlines() if linea.strip()]
+
+        cursos_equivalentes = sorted(list(set(cursos_equivalentes + nuevos_cursos)))
+
+        st.success(f"Se agregaron {len(nuevos_cursos)} nuevos cursos. Total: {len(cursos_equivalentes)} cursos disponibles.")
+    else:
         st.info("No se subió archivo .txt, se usará la lista de cursos por defecto.")
 
     # ------------------------------------------------
@@ -255,15 +268,42 @@ if st.session_state.paso == 2:
                 # Curso: estandarizar a mayúsculas
                 df2["CURSO"] = df2["CURSO"].astype(str).str.upper().str.strip()
 
-                # Validar cursos no reconocidos
-                cursos_invalidos = df2[~df2["CURSO"].isin(cursos_equivalentes)]["CURSO"].unique()
-                if len(cursos_invalidos) > 0:
-                    st.warning(f"⚠️ Se detectaron cursos no reconocidos: {', '.join(cursos_invalidos)}")
+                # ------------------------------------------------
+                # 4. Validaciones previas a la homologación
+                # ------------------------------------------------
 
-                # Nota vigesimal: convertir a número, valores fuera de rango => NP
-                df2["NOTA VIGESIMAL"] = pd.to_numeric(df2["NOTA VIGESIMAL"], errors="coerce")
-                df2.loc[df2["NOTA VIGESIMAL"].isna(), "NOTA VIGESIMAL"] = "NP"
-                df2.loc[(df2["NOTA VIGESIMAL"] != "NP") & ((df2["NOTA VIGESIMAL"] < 0) | (df2["NOTA VIGESIMAL"] > 20)), "NOTA VIGESIMAL"] = "NP"
+                # 4.1 Validar si hay campos vacíos en columnas críticas
+                columnas_obligatorias = ["NOMBRE", "PATERNO", "MATERNO", "SEXO", "GRADO", "CURSO", "NOTA VIGESIMAL"]
+                filas_vacias = df2[df2[columnas_obligatorias].isnull().any(axis=1)]
+
+                if not filas_vacias.empty:
+                    st.error("Se detectaron filas con campos vacíos. El administrador debe completar estos campos antes de continuar.")
+                    st.dataframe(filas_vacias, use_container_width=True)
+                    st.stop()  # termina el flujo inmediatamente
+
+                # 4.2 Validación de cursos no reconocidos
+                cursos_invalidos = sorted(df2.loc[~df2["CURSO"].isin(cursos_equivalentes), "CURSO"].unique())
+
+                if len(cursos_invalidos) > 0:
+                    st.warning(f"⚠️ Se detectaron {len(cursos_invalidos)} cursos no reconocidos.")
+                    st.info("Por favor, selecciona a qué curso oficial corresponde cada uno antes de continuar:")
+
+                    equivalencias_usuario = {}
+                    for curso in cursos_invalidos:
+                        equivalencias_usuario[curso] = st.selectbox(
+                            f"🔹 {curso}",
+                            options=["-- Seleccionar --"] + cursos_equivalentes,
+                            key=f"sel_{curso}"
+                        )
+
+                    if any(valor == "-- Seleccionar --" for valor in equivalencias_usuario.values()):
+                        st.error("⚠️ Debes seleccionar un curso oficial para cada curso no reconocido antes de continuar.")
+                        st.stop()
+                    else:
+                        # Aplicar las equivalencias seleccionadas
+                        for curso_erroneo, curso_correcto in equivalencias_usuario.items():
+                            df2.loc[df2["CURSO"] == curso_erroneo, "CURSO"] = curso_correcto
+                        st.success("Los cursos fueron homologados correctamente según las selecciones del usuario.")
 
                 # ------------------------------------------------
                 # 5. Crear columna IDENTIFICADOR (para uso interno)
@@ -274,23 +314,52 @@ if st.session_state.paso == 2:
                     df2["MATERNO"].astype(str).str.strip()
                 )
 
-                st.session_state.archivo2_df = df2
+                # Crear columnas adicionales antes del IDENTIFICADOR
+                df2["NOTAS 01"] = ""
+                df2["NOTAS 02"] = ""
 
+                # Eliminar la columna de IDENTIFICADOR para la descarga
+                columnas = [col for col in df2.columns if col != "IDENTIFICADOR"]
+                columnas.append("IDENTIFICADOR")
+                df2 = df2[columnas]
+
+                st.session_state.archivo2_df = df2
                 st.success("Archivo 2 validado y normalizado correctamente.")
                 st.dataframe(df2.head(10), use_container_width=True)
 
                 # ------------------------------------------------
-                # 6. Botón de descarga sin columna IDENTIFICADOR
+                # 6. Botón de descarga
                 # ------------------------------------------------
+                # ARCHIVO 2: sin columnas de notas
                 from io import BytesIO
-                df_descarga2 = df2.drop(columns=["IDENTIFICADOR"], errors="ignore")
-                buffer2 = BytesIO()
-                df_descarga2.to_excel(buffer2, index=False, engine="openpyxl")
-                buffer2.seek(0)
+                df_sin_notas = df2.drop(columns=["IDENTIFICADOR", "NOTAS 01", "NOTAS 02"], errors="ignore")
+                buffer2_sin = BytesIO()
+                df_sin_notas.to_excel(buffer2_sin, index=False, engine="openpyxl")
+                buffer2_sin.seek(0)
                 st.download_button(
                     label="⬇️ Descargar Archivo 2 Homologado",
-                    data=buffer2,
-                    file_name="archivo2_homologado.xlsx",
+                    data=buffer2_sin,
+                    file_name=(
+                        f"{st.session_state.get('nombre_colegio','').strip()}_notas_RV.xlsx"
+                        if st.session_state.get('nombre_colegio','').strip()
+                        else "archivo2_homologado.xlsx"
+                    ),
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+                # ARCHIVO 3: con columnas de notas
+                df_con_notas = df2.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                buffer_con = BytesIO()
+                df_con_notas.to_excel(buffer_con, index=False, engine="openpyxl")
+                buffer_con.seek(0)
+                st.download_button(
+                    label="⬇️ Descargar Archivo 3 (Evaluador)",
+                    data=buffer_con,
+                    file_name=(
+                        f"{st.session_state.get('nombre_colegio','').strip()}_evaluador.xlsx"
+                        if st.session_state.get('nombre_colegio','').strip()
+                        else "archivo3_evaluador.xlsx"
+                    ),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
@@ -341,10 +410,34 @@ if st.session_state.paso == 2:
                         df2["GRADO"] = df2["GRADO"].astype(str).str.upper().str.strip()
                         df2["CURSO"] = df2["CURSO"].astype(str).str.upper().str.strip()
 
-                        # Validar cursos no reconocidos
-                        cursos_invalidos = df2[~df2["CURSO"].isin(cursos_equivalentes)]["CURSO"].unique()
+                        # ------------------------------------------------
+                        # 4.1 Validación interactiva de cursos no reconocidos
+                        # ------------------------------------------------
+                        cursos_invalidos = sorted(df2.loc[~df2["CURSO"].isin(cursos_equivalentes), "CURSO"].unique())
+
                         if len(cursos_invalidos) > 0:
-                            st.warning(f"⚠️ Se detectaron cursos no reconocidos: {', '.join(cursos_invalidos)}")
+                            st.warning(f"⚠️ Se detectaron {len(cursos_invalidos)} cursos no reconocidos.")
+                            st.info("Por favor, selecciona a qué curso oficial corresponde cada uno antes de continuar:")
+
+                            # Diccionario temporal para almacenar las equivalencias elegidas
+                            equivalencias_usuario = {}
+
+                            for curso in cursos_invalidos:
+                                equivalencias_usuario[curso] = st.selectbox(
+                                    f"🔹 {curso}",
+                                    options=["-- Seleccionar --"] + cursos_equivalentes,
+                                    key=f"sel_{curso}"
+                                )
+
+                            # Verificar si el usuario ha completado todas las selecciones
+                            if any(valor == "-- Seleccionar --" for valor in equivalencias_usuario.values()):
+                                st.error("⚠️ Debes seleccionar un curso oficial para cada curso no reconocido antes de continuar.")
+                                st.stop()
+                            else:
+                                # Aplicar las equivalencias seleccionadas
+                                for curso_erroneo, curso_correcto in equivalencias_usuario.items():
+                                    df2.loc[df2["CURSO"] == curso_erroneo, "CURSO"] = curso_correcto
+                                st.success("Los cursos fueron homologados correctamente según las selecciones del usuario.")
 
                         # Nota vigesimal: convertir a número y validar rango
                         df2["NOTA VIGESIMAL"] = pd.to_numeric(df2["NOTA VIGESIMAL"], errors="coerce")
@@ -364,24 +457,55 @@ if st.session_state.paso == 2:
                             df2["MATERNO"].astype(str).str.strip()
                         )
 
+                        # Crear columnas adicionales antes del IDENTIFICADOR
+                        df2["NOTAS 01"] = ""
+                        df2["NOTAS 02"] = ""
+
+                        # Eliminar la columna de IDENTIFICADOR para la descarga
+                        columnas = [col for col in df2.columns if col != "IDENTIFICADOR"]
+                        columnas.append("IDENTIFICADOR")
+                        df2 = df2[columnas]
+
                         st.session_state.archivo2_df = df2
                         st.success("Archivo 2 validado y normalizado correctamente (modo manual).")
                         st.dataframe(df2.head(10), use_container_width=True)
 
                         # ------------------------------------------------
-                        # Botón de descarga sin columna IDENTIFICADOR
+                        # Botón de descarga
                         # ------------------------------------------------
+                        # ARCHIVO 2: sin columnas de notas
                         from io import BytesIO
-                        df_descarga2 = df2.drop(columns=["IDENTIFICADOR"], errors="ignore")
-                        buffer2 = BytesIO()
-                        df_descarga2.to_excel(buffer2, index=False, engine="openpyxl")
-                        buffer2.seek(0)
+                        df_sin_notas = df2.drop(columns=["IDENTIFICADOR", "NOTAS 01", "NOTAS 02"], errors="ignore")
+                        buffer2_sin = BytesIO()
+                        df_sin_notas.to_excel(buffer2_sin, index=False, engine="openpyxl")
+                        buffer2_sin.seek(0)
                         st.download_button(
                             label="⬇️ Descargar Archivo 2 Homologado",
-                            data=buffer2,
-                            file_name="archivo2_homologado.xlsx",
+                            data=buffer2_sin,
+                            file_name=(
+                                f"{st.session_state.get('nombre_colegio','').strip()}_notas_RV.xlsx"
+                                if st.session_state.get('nombre_colegio','').strip()
+                                else "archivo2_homologado.xlsx"
+                            ),
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
+
+                        # ARCHIVO 3: con columnas de notas
+                        df_con_notas = df2.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                        buffer_con = BytesIO()
+                        df_con_notas.to_excel(buffer_con, index=False, engine="openpyxl")
+                        buffer_con.seek(0)
+                        st.download_button(
+                            label="⬇️ Descargar Archivo 3 (Evaluador)",
+                            data=buffer_con,
+                            file_name=(
+                                f"{st.session_state.get('nombre_colegio','').strip()}_evaluador.xlsx"
+                                if st.session_state.get('nombre_colegio','').strip()
+                                else "archivo3_evaluador.xlsx"
+                            ),
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+
                     else:
                         st.error("La fila seleccionada no contiene todas las columnas requeridas.")
                         st.info("Por favor, modifica el archivo Excel para que coincida con esta estructura:")
