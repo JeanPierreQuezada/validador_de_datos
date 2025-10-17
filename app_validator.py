@@ -1,3 +1,10 @@
+# SN: Sin nomina
+# NA: Nomina ausente
+# NP: No se presento
+# Nota laboratorio (25)
+# Nota evaluador (75)
+# Promedio Final
+
 # ===============================================
 # PASO 1: SUBIDA Y VALIDACIÓN DEL ARCHIVO 1
 # ===============================================
