@@ -519,7 +519,7 @@ elif st.session_state.paso_actual == 2:
                                     for curso_err, curso_ok in equivalencias.items():
                                         df2.loc[df2["CURSO"] == curso_err, "CURSO"] = curso_ok
                                     
-                                    # CRÍTICO: Guardar en session_state ANTES del rerun
+                                    # Guardar en session_state ANTES del rerun
                                     df2["IDENTIFICADOR"] = crear_identificador(df2, "NOMBRE", "PATERNO", "MATERNO")
                                     df2["NOTAS VIGESIMALES 75%"] = ""
                                     df2["PROMEDIO"] = ""
@@ -624,14 +624,14 @@ elif st.session_state.paso_actual == 2:
                                     use_container_width=True
                                 )
                     
-                    # --- Si solo hay un botón, muestra "Paso siguiente" al lado ---
+                    # --- Si solo hay un botón ---
                     if num_descargas == 1:
                         with cols_descarga[1]:
                             if st.button("✅ Finalizar Proceso", type="primary", use_container_width=True):
                                 st.session_state.paso_actual = 3
                                 st.rerun()
 
-                    # --- Si hay varios botones, poner el botón finalizar en la sección 3 ---
+                    # --- Si hay varios botones ---
                     else:
                         st.divider()
                         col1, col2, col3 = st.columns([1, 1, 2])
