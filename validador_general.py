@@ -1,10 +1,3 @@
-# SN: Sin nomina
-# NA: Nomina ausente
-# NP: No se presento
-# Nota laboratorio (25)
-# Nota evaluador (75)
-# Promedio Final
-
 # ===============================================
 # PASO 1: SUBIDA Y VALIDACIÓN DEL ARCHIVO 1
 # ===============================================
@@ -57,12 +50,12 @@ if "cursos_equivalentes" not in st.session_state:
 # CONSTANTES
 # ================================================
 COLUMNAS_ARCHIVO1 = [
-    "Nombre", "Paterno", "Materno", "Fecha", "Sexo",
-    "Grado", "Sección", "Correo", "Neurodiversidad", "DNI"
+    "Paterno", "Materno", "Nombres", "Nacimiento (DD/MM/YYYY)", "Sexo (M/F)",
+    "Grado", "Sección", "Correo institucional", "Neurodiversidad (Sí/No)", "DNI"
 ]
 
 COLUMNAS_ARCHIVO2 = [
-    "Nombre", "Paterno", "Materno", "Sexo", "Grado", "Curso", "Nota Vigesimal"
+    "Paterno", "Materno", "Nombres", "Curso", "Grado", "Sección", "Nota Vigesimal"
 ]
 
 # ================================================
@@ -80,10 +73,10 @@ def detectar_cabecera_automatica(df: pd.DataFrame, columnas_objetivo: list):
             return idx
     return None
 
-def crear_identificador(df, col_nombre, col_paterno, col_materno):
+def crear_identificador(df, col_paterno, col_materno, col_nombres):
     """Crea columna identificador"""
     return (
-        df[col_nombre].astype(str).str.strip() + " " +
+        df[col_nombres].astype(str).str.strip() + " " +
         df[col_paterno].astype(str).str.strip() + " " +
         df[col_materno].astype(str).str.strip()
     )
@@ -99,6 +92,41 @@ def normalizar_columnas_texto(df, columnas):
             .str.decode("utf-8")
             .str.strip()
         )
+    return df
+
+def homologar_dataframe(df):
+    """
+    Homologa un DataFrame completo:
+    - Todas las columnas: Convierte a mayúsculas y quita espacios
+    - Columnas PATERNO, MATERNO, NOMBRES : Además quita acentos y normaliza espacios múltiples
+    """
+    # Columnas especiales que requieren normalización de acentos
+    columnas_nombres = ["PATERNO", "MATERNO", "NOMBRES"]
+    
+    # Procesar todas las columnas
+    for col in df.columns:
+        if col.upper() in columnas_nombres:
+            # Para columnas de nombres: mayúsculas + sin acentos + normalizar espacios
+            df[col] = (
+                df[col].astype(str)
+                .str.strip()  # Quitar espacios al inicio y final
+                .str.upper()  # Convertir a mayúsculas
+                .str.normalize("NFKD")  # Normalizar unicode
+                .str.encode("ascii", errors="ignore")  # Quitar acentos
+                .str.decode("utf-8")
+                .str.replace(r'\s+', ' ', regex=True)  # Múltiples espacios a uno solo
+                .str.strip()  # Quitar espacios finales después de la normalización
+            )
+        else:
+            # Solo mayúsculas y quitar espacios
+            df[col] = (
+                df[col].astype(str)
+                .str.strip()  # Quitar espacios al inicio y final
+                .str.upper()  # Convertir a mayúsculas
+                .str.replace(r'\s+', ' ', regex=True)  # Múltiples espacios a uno solo
+                .str.strip()  # Quitar espacios finales
+            )
+    
     return df
 
 def mostrar_stepper(paso_actual):
@@ -138,7 +166,7 @@ st.markdown("### Sistema de Homologación de Datos")
 mostrar_stepper(st.session_state.paso_actual)
 
 # ================================================
-# PASO 0: NOMBRE DEL COLEGIO
+# PASO 0: Nombre DEL COLEGIO
 # ================================================
 if st.session_state.paso_actual == 0:
     st.header("🏫 Paso 1: Información del Colegio")
@@ -147,26 +175,26 @@ if st.session_state.paso_actual == 0:
         st.markdown("""
         <div style='background-color: #78808C; padding: 20px; border-radius: 10px; margin-bottom: 20px;'>
             <h4>Bienvenido al sistema de validación</h4>
-            <p>Para comenzar, ingresa el nombre del colegio. Este nombre se usará para identificar los archivos descargables.</p>
+            <p>Para comenzar, ingresa el Nombre del colegio. Este Nombre se usará para identificar los archivos descargables.</p>
         </div>
         """, unsafe_allow_html=True)
         
-        nombre = st.text_input(
+        NOMBRES = st.text_input(
             "Nombre del Colegio",
             value=st.session_state.nombre_colegio,
             placeholder="Ejemplo: Colegio San Martín de Porres",
-            help="Este nombre aparecerá en los archivos descargados"
+            help="Este Nombre aparecerá en los archivos descargados"
         )
         
         col1, col2, col3 = st.columns([1, 1, 2])
         with col1:
             if st.button("➡️ Continuar", type="primary", use_container_width=True):
-                if nombre.strip():
-                    st.session_state.nombre_colegio = nombre.strip()
+                if NOMBRES.strip():
+                    st.session_state.nombre_colegio = NOMBRES.strip()
                     st.session_state.paso_actual = 1
                     st.rerun()
                 else:
-                    st.error("Por favor, ingresa el nombre del colegio")
+                    st.error("Por favor, ingresa el Nombre del colegio")
 
 # ================================================
 # PASO 1: ARCHIVO 1 (NÓMINA)
@@ -175,7 +203,7 @@ elif st.session_state.paso_actual == 1:
     # Mostrar resumen del paso anterior
     with st.expander("✅ Paso 1 completado: Nombre del Colegio", expanded=False):
         st.info(f"**Colegio:** {st.session_state.nombre_colegio}")
-        if st.button("🔄 Cambiar nombre", key="cambiar_nombre"):
+        if st.button("🔄 Cambiar Nombre", key="cambiar_nombre"):
             st.session_state.paso_actual = 0
             st.rerun()
     
@@ -187,7 +215,7 @@ elif st.session_state.paso_actual == 1:
             <h4>📄 Instrucciones</h4>
             <p>Sube el archivo Excel que contiene la nómina de alumnos.</p>
             <p><strong>Columnas requeridas:</strong></p>
-            <code>Nombre, Paterno, Materno, Fecha, Sexo, Grado, Sección, Correo, Neurodiversidad, DNI</code>
+            <code>Paterno, Materno, Nombres, Nacimiento (DD/MM/YYYY), Sexo (M/F), Grado, Sección, Correo institucional, Neurodiversidad (Sí/No), DNI</code>
         </div>
         """, unsafe_allow_html=True)
         
@@ -218,7 +246,10 @@ elif st.session_state.paso_actual == 1:
                         
                         df = df[cols_a_usar]
                         df.columns = [col.upper() for col in COLUMNAS_ARCHIVO1]
-                        df["IDENTIFICADOR"] = crear_identificador(df, "NOMBRE", "PATERNO", "MATERNO")
+                        
+                        df = homologar_dataframe(df)
+                        
+                        df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
                         
                         st.session_state.archivo1_df = df
                         
@@ -274,7 +305,11 @@ elif st.session_state.paso_actual == 1:
                                 
                                 df = df[cols_a_usar]
                                 df.columns = [col.upper() for col in COLUMNAS_ARCHIVO1]
-                                df["IDENTIFICADOR"] = crear_identificador(df, "NOMBRE", "PATERNO", "MATERNO")
+                                
+                                # Homologar datos
+                                df = homologar_dataframe(df)
+                                
+                                df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
                                 
                                 st.session_state.archivo1_df = df
                                 st.rerun()
@@ -319,7 +354,7 @@ elif st.session_state.paso_actual == 2:
         <h4>📄 Instrucciones</h4>
         <p>Sube el archivo Excel con las notas de los cursos.</p>
         <p><strong>Columnas requeridas:</strong></p>
-        <code>Nombre, Paterno, Materno, Sexo, Grado, Curso, Nota Vigesimal</code>
+        <code>Paterno, Materno, Nombres, Curso, Grado, Sección,  Nota Vigesimal</code>
     </div>
     """, unsafe_allow_html=True)
     
@@ -346,10 +381,10 @@ elif st.session_state.paso_actual == 2:
                 cols_info = st.columns(2)
                 with cols_info[0]:
                     if tiene_1p3p:
-                        st.info("📘 **1P-3P** encontrada (se convertirá a mayúsculas)")
+                        st.info("📘 **1P-3P** encontrada")
                 with cols_info[1]:
                     if tiene_4p5s:
-                        st.info("📗 **4P-5S** encontrada (se homologará completamente)")
+                        st.info("📗 **4P-5S** encontrada")
                 
                 st.divider()
                 
@@ -379,9 +414,8 @@ elif st.session_state.paso_actual == 2:
                         df_1p3p = df_1p3p[cols_a_usar]
                         df_1p3p.columns = [col.upper() for col in COLUMNAS_ARCHIVO2]
                         
-                        # Solo convertir todo a mayúsculas
-                        for col in df_1p3p.columns:
-                            df_1p3p[col] = df_1p3p[col].astype(str).str.upper().str.strip()
+                        # Homologar datos
+                        df_1p3p = homologar_dataframe(df_1p3p)
                         
                         # Validar cursos en 1P-3P
                         cursos_invalidos_1p3p = sorted(df_1p3p.loc[~df_1p3p["CURSO"].isin(st.session_state.cursos_equivalentes), "CURSO"].unique())
@@ -411,8 +445,8 @@ elif st.session_state.paso_actual == 2:
                                         for curso_err, curso_ok in equivalencias_1p3p.items():
                                             df_1p3p.loc[df_1p3p["CURSO"] == curso_err, "CURSO"] = curso_ok
                                         
-                                        # Agregar solo IDENTIFICADOR (NO agregar NOTAS VIGESIMALES 75% y PROMEDIO)
-                                        df_1p3p["IDENTIFICADOR"] = crear_identificador(df_1p3p, "NOMBRE", "PATERNO", "MATERNO")
+                                        # Agregar solo IDENTIFICADOR
+                                        df_1p3p["IDENTIFICADOR"] = crear_identificador(df_1p3p, "PATERNO", "MATERNO", "NOMBRES")
                                         
                                         # Reordenar
                                         cols_orden = [c for c in df_1p3p.columns if c != "IDENTIFICADOR"]
@@ -425,14 +459,14 @@ elif st.session_state.paso_actual == 2:
                                         st.success("✅ Cursos homologados correctamente en 1P-3P")
                                         st.rerun()
                         
-                        # Si no hay cursos inválidos o ya fueron procesados
+                        # Si no hay cursos inválidos
                         if len(cursos_invalidos_1p3p) == 0 or st.session_state.archivo2_1p3p_df is not None:
                             # Usar el DataFrame guardado si existe, sino usar el actual
                             if st.session_state.archivo2_1p3p_df is not None:
                                 df_1p3p = st.session_state.archivo2_1p3p_df
                             else:
-                                # Agregar solo IDENTIFICADOR (NO agregar NOTAS VIGESIMALES 75% y PROMEDIO)
-                                df_1p3p["IDENTIFICADOR"] = crear_identificador(df_1p3p, "NOMBRE", "PATERNO", "MATERNO")
+                                # Agregar solo IDENTIFICADOR
+                                df_1p3p["IDENTIFICADOR"] = crear_identificador(df_1p3p, "PATERNO", "MATERNO", "NOMBRES")
                                 
                                 # Reordenar
                                 cols_orden = [c for c in df_1p3p.columns if c != "IDENTIFICADOR"]
@@ -476,14 +510,11 @@ elif st.session_state.paso_actual == 2:
                     df2 = df2[cols_a_usar]
                     df2.columns = [col.upper() for col in COLUMNAS_ARCHIVO2]
                     
-                    # Normalizar
-                    df2 = normalizar_columnas_texto(df2, ["NOMBRE", "PATERNO", "MATERNO"])
-                    df2["SEXO"] = df2["SEXO"].astype(str).str.upper().str.strip()
-                    df2["GRADO"] = df2["GRADO"].astype(str).str.upper().str.strip()
-                    df2["CURSO"] = df2["CURSO"].astype(str).str.upper().str.strip()
+                    # Homologar datos
+                    df2 = homologar_dataframe(df2)
                     
                     # Validar campos vacíos
-                    columnas_oblig = ["NOMBRE", "PATERNO", "MATERNO", "SEXO", "GRADO", "CURSO", "NOTA VIGESIMAL"]
+                    columnas_oblig = ["PATERNO", "MATERNO", "NOMBRES", "CURSO", "GRADO", "SECCIÓN", "NOTA VIGESIMAL"]
                     filas_vacias = df2[df2[columnas_oblig].isnull().any(axis=1)]
                     
                     if not filas_vacias.empty:
@@ -519,8 +550,8 @@ elif st.session_state.paso_actual == 2:
                                     for curso_err, curso_ok in equivalencias.items():
                                         df2.loc[df2["CURSO"] == curso_err, "CURSO"] = curso_ok
                                     
-                                    # Guardar en session_state ANTES del rerun
-                                    df2["IDENTIFICADOR"] = crear_identificador(df2, "NOMBRE", "PATERNO", "MATERNO")
+                                    # Guardar en session_state
+                                    df2["IDENTIFICADOR"] = crear_identificador(df2, "PATERNO", "MATERNO", "NOMBRES")
                                     df2["NOTAS VIGESIMALES 75%"] = ""
                                     df2["PROMEDIO"] = ""
                                     
@@ -535,9 +566,9 @@ elif st.session_state.paso_actual == 2:
                                     st.success("✅ Cursos homologados correctamente")
                                     st.rerun()
                     
-                    # Si no hay cursos inválidos o ya fueron procesados
+                    # Si no hay cursos inválidos
                     if len(cursos_invalidos) == 0 or st.session_state.archivo2_df is not None:
-                        df2["IDENTIFICADOR"] = crear_identificador(df2, "NOMBRE", "PATERNO", "MATERNO")
+                        df2["IDENTIFICADOR"] = crear_identificador(df2, "PATERNO", "MATERNO", "NOMBRES")
                         df2["NOTAS VIGESIMALES 75%"] = ""
                         df2["PROMEDIO"] = ""
                         
