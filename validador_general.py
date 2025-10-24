@@ -58,6 +58,16 @@ COLUMNAS_ARCHIVO2 = [
     "Paterno", "Materno", "Nombres", "Curso", "Grado", "Sección", "Nota Vigesimal"
 ]
 
+# Constantes de validación
+SEXO_VALIDO = ["M", "F"]
+SECCIONES_VALIDAS = ["A", "B", "C", "D", "E", "F", "G", "U"]
+GRADOS_VALIDOS = ["1P", "2P", "3P", "4P", "5P", "6P", "1S", "2S", "3S", "4S", "5S"]
+MAPEO_GRADOS = {
+    "1": "1P", "2": "2P", "3": "3P", "4": "4P", "5": "5P", "6": "6P",
+    "7": "1S", "8": "2S", "9": "3S", "10": "4S", "11": "5S"
+}
+
+
 # ================================================
 # FUNCIONES AUXILIARES
 # ================================================
@@ -129,6 +139,55 @@ def homologar_dataframe(df):
     
     return df
 
+def validar_y_mapear_grados(df, col_grado="GRADO"):
+    """
+    Valida y mapea los grados. Convierte números 1-11 a formato estándar (1P-6P, 1S-5S).
+    Retorna DataFrame procesado y lista de errores.
+    """
+    errores = []
+    df[col_grado] = df[col_grado].astype(str).str.strip().str.upper()
+    
+    # Mapear números a grados
+    df[col_grado] = df[col_grado].replace(MAPEO_GRADOS)
+    
+    # Validar grados
+    grados_invalidos = df[~df[col_grado].isin(GRADOS_VALIDOS)]
+    if len(grados_invalidos) > 0:
+        for idx, row in grados_invalidos.iterrows():
+            errores.append(f"Fila {idx + 2}: Grado inválido '{row[col_grado]}'")
+    
+    return df, errores
+
+def validar_sexo(df, col_sexo="SEXO (M/F)"):
+    """
+    Valida que el sexo sea M o F.
+    Retorna lista de errores.
+    """
+    errores = []
+    df[col_sexo] = df[col_sexo].astype(str).str.strip().str.upper()
+    
+    sexos_invalidos = df[~df[col_sexo].isin(SEXO_VALIDO)]
+    if len(sexos_invalidos) > 0:
+        for idx, row in sexos_invalidos.iterrows():
+            errores.append(f"Fila {idx + 2}: Sexo inválido '{row[col_sexo]}' (debe ser M o F)")
+    
+    return errores
+
+def validar_secciones(df, col_seccion="SECCIÓN"):
+    """
+    Valida que las secciones sean válidas (A-G, U).
+    Retorna lista de errores.
+    """
+    errores = []
+    df[col_seccion] = df[col_seccion].astype(str).str.strip().str.upper()
+    
+    secciones_invalidas = df[~df[col_seccion].isin(SECCIONES_VALIDAS)]
+    if len(secciones_invalidas) > 0:
+        for idx, row in secciones_invalidas.iterrows():
+            errores.append(f"Fila {idx + 2}: Sección inválida '{row[col_seccion]}' (debe ser A-G o U)")
+    
+    return errores
+
 def mostrar_stepper(paso_actual):
     """Muestra el indicador de progreso visual"""
     pasos = [
@@ -170,15 +229,17 @@ mostrar_stepper(st.session_state.paso_actual)
 # ================================================
 if st.session_state.paso_actual == 0:
     st.header("🏫 Paso 1: Información del Colegio")
-    
-    with st.container():
-        st.markdown("""
+
+    st.markdown("""
         <div style='background-color: #78808C; padding: 20px; border-radius: 10px; margin-bottom: 20px;'>
             <h4>Bienvenido al sistema de validación</h4>
             <p>Para comenzar, ingresa el Nombre del colegio. Este Nombre se usará para identificar los archivos descargables.</p>
         </div>
         """, unsafe_allow_html=True)
-        
+
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
         NOMBRES = st.text_input(
             "Nombre del Colegio",
             value=st.session_state.nombre_colegio,
@@ -186,15 +247,15 @@ if st.session_state.paso_actual == 0:
             help="Este Nombre aparecerá en los archivos descargados"
         )
         
-        col1, col2, col3 = st.columns([1, 1, 2])
-        with col1:
-            if st.button("➡️ Continuar", type="primary", use_container_width=True):
-                if NOMBRES.strip():
-                    st.session_state.nombre_colegio = NOMBRES.strip()
-                    st.session_state.paso_actual = 1
-                    st.rerun()
-                else:
-                    st.error("Por favor, ingresa el Nombre del colegio")
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("➡️ Continuar", type="primary", use_container_width=True):
+            if NOMBRES.strip():
+                st.session_state.nombre_colegio = NOMBRES.strip()
+                st.session_state.paso_actual = 1
+                st.rerun()
+            else:
+                st.error("Por favor, ingresa el Nombre del colegio")
 
 # ================================================
 # PASO 1: ARCHIVO 1 (NÓMINA)
@@ -249,9 +310,36 @@ elif st.session_state.paso_actual == 1:
                         
                         df = homologar_dataframe(df)
                         
-                        df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
+                        # Validaciones para Archivo 1 (nómina)
+                        errores_validacion = []
                         
-                        st.session_state.archivo1_df = df
+                        # 1. Validar y mapear grados
+                        df, errores_grados = validar_y_mapear_grados(df, "GRADO")
+                        errores_validacion.extend(errores_grados)
+                        
+                        # 2. Validar sexo
+                        errores_sexo = validar_sexo(df, "SEXO (M/F)")
+                        errores_validacion.extend(errores_sexo)
+                        
+                        # 3. Validar secciones
+                        errores_secciones = validar_secciones(df, "SECCIÓN")
+                        errores_validacion.extend(errores_secciones)
+                        
+                        # Mostrar errores si existen
+                        if errores_validacion:
+                            st.error("❌ Se encontraron errores de validación:")
+                            with st.expander("Ver errores detallados", expanded=True):
+                                for error in errores_validacion[:50]:  # Mostrar máximo 50 errores
+                                    st.warning(error)
+                                if len(errores_validacion) > 50:
+                                    st.info(f"... y {len(errores_validacion) - 50} errores más")
+                            st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
+                        else:
+                            df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
+                            
+                            st.session_state.archivo1_df = df
+                            
+                            st.success("✅ Todas las validaciones pasaron correctamente")
                         
                         # Mostrar preview
                         st.markdown("### 📊 Vista Previa de Datos")
@@ -309,10 +397,34 @@ elif st.session_state.paso_actual == 1:
                                 # Homologar datos
                                 df = homologar_dataframe(df)
                                 
-                                df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
+                                # Validaciones para Archivo 1 (nómina)
+                                errores_validacion = []
                                 
-                                st.session_state.archivo1_df = df
-                                st.rerun()
+                                # 1. Validar y mapear grados
+                                df, errores_grados = validar_y_mapear_grados(df, "GRADO")
+                                errores_validacion.extend(errores_grados)
+                                
+                                # 2. Validar sexo
+                                errores_sexo = validar_sexo(df, "SEXO (M/F)")
+                                errores_validacion.extend(errores_sexo)
+                                
+                                # 3. Validar secciones
+                                errores_secciones = validar_secciones(df, "SECCION")
+                                errores_validacion.extend(errores_secciones)
+                                
+                                # Mostrar errores o continuar
+                                if errores_validacion:
+                                    st.error("❌ Se encontraron errores de validación:")
+                                    with st.expander("Ver errores detallados", expanded=True):
+                                        for error in errores_validacion[:50]:
+                                            st.warning(error)
+                                        if len(errores_validacion) > 50:
+                                            st.info(f"... y {len(errores_validacion) - 50} errores más")
+                                else:
+                                    df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
+                                    st.session_state.archivo1_df = df
+                                    st.success("✅ Validaciones pasadas correctamente")
+                                    st.rerun()
                             else:
                                 st.error("❌ La fila seleccionada no contiene todas las columnas requeridas")
                 
@@ -416,6 +528,29 @@ elif st.session_state.paso_actual == 2:
                         
                         # Homologar datos
                         df_1p3p = homologar_dataframe(df_1p3p)
+                        
+                        # Validaciones para Archivo 2 - Hoja 1P-3P
+                        errores_validacion_1p3p = []
+                        
+                        # 1. Validar y mapear grados
+                        df_1p3p, errores_grados = validar_y_mapear_grados(df_1p3p, "GRADO")
+                        errores_validacion_1p3p.extend(errores_grados)
+                        
+                        # 2. Validar secciones
+                        errores_secciones = validar_secciones(df_1p3p, "SECCION")
+                        errores_validacion_1p3p.extend(errores_secciones)
+                        
+                        # Mostrar errores de validación si existen
+                        if errores_validacion_1p3p:
+                            st.error("❌ Errores de validación en 1P-3P:")
+                            with st.expander("Ver errores detallados", expanded=True):
+                                for error in errores_validacion_1p3p[:30]:
+                                    st.warning(error)
+                                if len(errores_validacion_1p3p) > 30:
+                                    st.info(f"... y {len(errores_validacion_1p3p) - 30} errores más")
+                            st.info("Por favor, corrige estos errores y vuelve a cargar el archivo")
+                        else:
+                            st.success("✅ Validaciones de grados y secciones pasadas (1P-3P)")
                         
                         # Validar cursos en 1P-3P
                         cursos_invalidos_1p3p = sorted(df_1p3p.loc[~df_1p3p["CURSO"].isin(st.session_state.cursos_equivalentes), "CURSO"].unique())
