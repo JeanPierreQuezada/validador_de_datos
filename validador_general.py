@@ -5,6 +5,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import unicodedata
 
 # ================================================
 # CONFIGURACIÓN INICIAL
@@ -50,17 +51,17 @@ if "cursos_equivalentes" not in st.session_state:
 # CONSTANTES
 # ================================================
 COLUMNAS_ARCHIVO1 = [
-    "Paterno", "Materno", "Nombres", "Nacimiento (DD/MM/YYYY)", "Sexo (M/F)",
+    "Nº", "Paterno", "Materno", "Nombres", "Nacimiento (DD/MM/YYYY)", "Sexo (M/F)",
     "Grado", "Sección", "Correo institucional", "Neurodiversidad (Sí/No)", "DNI"
 ]
 
 COLUMNAS_ARCHIVO2 = [
-    "Paterno", "Materno", "Nombres", "Curso", "Grado", "Sección", "Nota Vigesimal"
+    "Nro.", "Paterno", "Materno", "Nombres", "Curso", "Grado", "Sección", "Nota Vigesimal"
 ]
 
 # Constantes de validación
 SEXO_VALIDO = ["M", "F"]
-SECCIONES_VALIDAS = ["A", "B", "C", "D", "E", "F", "G", "U"]
+SECCIONES_VALIDAS = ["A", "B", "C", "D", "E", "F", "G", "U", "UNICO", "UNICA"]
 GRADOS_VALIDOS = ["1P", "2P", "3P", "4P", "5P", "6P", "1S", "2S", "3S", "4S", "5S"]
 MAPEO_GRADOS = {
     "1": "1P", "2": "2P", "3": "3P", "4": "4P", "5": "5P", "6": "6P",
@@ -91,51 +92,152 @@ def crear_identificador(df, col_paterno, col_materno, col_nombres):
         df[col_materno].astype(str).str.strip()
     )
 
+def normalizar_enie(texto):
+    """
+    Normaliza texto a mayúsculas y elimina acentos, preservando Ñ
+    """
+    if pd.isna(texto):
+        return ""
+    
+    texto = str(texto).strip().upper()
+    
+    # Normalizar caracteres Unicode
+    texto_nfd = unicodedata.normalize('NFD', texto)
+    
+    # Reconstruir el texto eliminando solo las marcas diacríticas (acentos) y con Ñ
+    resultado = []
+    for char in texto_nfd:
+        # Si es la Ñ, mantenerla
+        if char in ['Ñ', 'ñ']:
+            resultado.append('Ñ')
+        # Si no es una marca diacrítica (acento), incluirla
+        elif unicodedata.category(char) != 'Mn':
+            resultado.append(char)
+    
+    return ''.join(resultado)
+
 def normalizar_columnas_texto(df, columnas):
-    """Normaliza columnas de texto (mayúsculas, sin acentos)"""
+    """
+    Normaliza texto a mayúsculas y elimina acentos, preservando Ñ
+    """
     for col in columnas:
-        df[col] = (
-            df[col].astype(str)
-            .str.upper()
-            .str.normalize("NFKD")
-            .str.encode("ascii", errors="ignore")
-            .str.decode("utf-8")
-            .str.strip()
-        )
+        df[col] = df[col].apply(normalizar_enie)
+        # Normalizar espacios múltiples
+        df[col] = df[col].str.replace(r'\s+', ' ', regex=True).str.strip()
     return df
+
+def limpiar_filas_vacias(df, columnas_clave=None):
+    """
+    Args:
+        df: DataFrame a limpiar
+        columnas_clave: Lista de nombres de columnas para verificar (default: primeras 4)
+    
+    Returns:
+        DataFrame limpio sin filas completamente vacías (evita sólo los Nro o N°)
+    """
+    if columnas_clave is None:
+        # Usar las columnas 2, 3, 4
+        columnas_clave = df.columns[1:4].tolist()
+    
+    # Contar registros originales
+    total_original = len(df)
+    
+    # Filtrar: mantener solo filas donde AL MENOS UNA columna clave tenga datos
+    df_limpio = df.dropna(subset=columnas_clave, how='all').copy()
+    
+    # Eliminar filas donde todas las columnas clave sean strings vacíos
+    mask = df_limpio[columnas_clave].apply(
+        lambda x: x.astype(str).str.strip().ne('')
+    ).any(axis=1)
+    df_limpio = df_limpio[mask].reset_index(drop=True)
+    
+    # Mostrar info si se eliminaron filas
+    filas_eliminadas = total_original - len(df_limpio)
+    if filas_eliminadas > 0:
+        st.info(f"🧹 Se eliminaron {filas_eliminadas} filas vacías (quedaron {len(df_limpio)} registros)")
+    
+    return df_limpio
 
 def homologar_dataframe(df):
     """
     Homologa un DataFrame completo:
     - Todas las columnas: Convierte a mayúsculas y quita espacios
-    - Columnas PATERNO, MATERNO, NOMBRES : Además quita acentos y normaliza espacios múltiples
+    - Columnas PATERNO, MATERNO, NOMBRES: Además quita acentos y mantiene la Ñ
     """
     # Columnas especiales que requieren normalización de acentos
     columnas_nombres = ["PATERNO", "MATERNO", "NOMBRES"]
-    
+    filas_vacias = df[df[columnas_nombres].isnull().any(axis=1)]
+
+    if not filas_vacias.empty:
+        st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Archivo 1 - Nómina)")
+        st.dataframe(filas_vacias, use_container_width=True)
+        #st.stop()
+
     # Procesar todas las columnas
     for col in df.columns:
         if col.upper() in columnas_nombres:
-            # Para columnas de nombres: mayúsculas + sin acentos + normalizar espacios
-            df[col] = (
-                df[col].astype(str)
-                .str.strip()  # Quitar espacios al inicio y final
-                .str.upper()  # Convertir a mayúsculas
-                .str.normalize("NFKD")  # Normalizar unicode
-                .str.encode("ascii", errors="ignore")  # Quitar acentos
-                .str.decode("utf-8")
-                .str.replace(r'\s+', ' ', regex=True)  # Múltiples espacios a uno solo
-                .str.strip()  # Quitar espacios finales después de la normalización
-            )
+            # Para columnas de nombres: usar función que preserva Ñ
+            df[col] = df[col].apply(normalizar_enie)
+            # Normalizar espacios múltiples
+            df[col] = df[col].str.replace(r'\s+', ' ', regex=True).str.strip()
         else:
             # Solo mayúsculas y quitar espacios
             df[col] = (
                 df[col].astype(str)
-                .str.strip()  # Quitar espacios al inicio y final
-                .str.upper()  # Convertir a mayúsculas
-                .str.replace(r'\s+', ' ', regex=True)  # Múltiples espacios a uno solo
-                .str.strip()  # Quitar espacios finales
+                .str.strip()
+                .str.upper()
+                .str.replace(r'\s+', ' ', regex=True)
+                .str.strip()
             )
+    
+    return df
+
+def convertir_numericas_a_entero(df, columnas=None):
+    """
+    Convierte valores numéricos flotantes a enteros (1.0 → "1")
+    Funciona incluso en columnas mixtas (1.0, "2P", 3.0)
+    
+    Args:
+        df: DataFrame a procesar
+        columnas: Lista de columnas a convertir
+    
+    Returns:
+        DataFrame con columnas convertidas
+    """
+    if columnas is None:
+        columnas = df.select_dtypes(include=['float64', 'float32']).columns.tolist()
+    
+    for col in columnas:
+        if col not in df.columns:
+            continue
+        
+        # Procesar cada valor individualmente
+        def convertir_valor(val):
+            """Convierte un valor individual"""
+            if pd.isna(val):
+                return val
+            
+            # Convertir a string para inspeccionar
+            val_str = str(val).strip()
+            
+            # Si ya tiene letras, dejarlo como está
+            if any(c.isalpha() for c in val_str):
+                return val_str
+            
+            # Si es numérico puro, intentar convertir
+            try:
+                val_num = float(val)
+                # Si es un entero disfrazado de float (1.0, 2.0)
+                if val_num % 1 == 0:
+                    return str(int(val_num))
+                else:
+                    # Si tiene decimales reales (1.5), mantener como string
+                    return val_str
+            except (ValueError, TypeError):
+                return val_str
+        
+        # Aplicar la conversión a toda la columna
+        df[col] = df[col].apply(convertir_valor)
     
     return df
 
@@ -185,6 +287,83 @@ def validar_secciones(df, col_seccion="SECCIÓN"):
     if len(secciones_invalidas) > 0:
         for idx, row in secciones_invalidas.iterrows():
             errores.append(f"Fila {idx + 2}: Sección inválida '{row[col_seccion]}' (debe ser A-G o U)")
+    
+    return errores
+
+def validar_neurodiversidad(df, col_neuro="NEURODIVERSIDAD (SÍ/NO)"):
+    """
+    Valida que neurodiversidad sea Sí o No.
+    Retorna lista de errores.
+    """
+    errores = []
+    df[col_neuro] = df[col_neuro].astype(str).str.strip().str.upper()
+    
+    # Mapear variaciones comunes
+    mapeo_neuro = {
+        "SI": "SÍ", "S": "SÍ", "YES": "SÍ", "Y": "SÍ",
+        "N": "NO", "NOT": "NO"
+    }
+    df[col_neuro] = df[col_neuro].replace(mapeo_neuro)
+    
+    neuros_invalidas = df[~df[col_neuro].isin(["SÍ", "NO"])]
+    if len(neuros_invalidas) > 0:
+        for idx, row in neuros_invalidas.iterrows():
+            identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
+            errores.append(f"Fila {idx + 2}: Neurodiversidad inválida '{row[col_neuro]}' - {identificador}")
+    
+    return errores
+
+def validar_fecha_nacimiento(df, col_fecha="NACIMIENTO (DD/MM/YYYY)"):
+    """
+    Valida formato de fecha DD/MM/YYYY.
+    Retorna lista de errores.
+    """
+    errores = []
+    
+    for idx, row in df.iterrows():
+        fecha = str(row[col_fecha]).strip()
+        identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
+        
+        # Validar formato DD/MM/YYYY
+        if not pd.to_datetime(fecha, format="%d/%m/%Y", errors="coerce") is pd.NaT:
+            continue
+        else:
+            errores.append(f"Fila {idx + 2}: Fecha inválida '{fecha}' - {identificador}")
+    
+    return errores
+
+def validar_dni(df, col_dni="DNI"):
+    """
+    Valida que el DNI tenga exactamente 8 dígitos.
+    Retorna lista de errores.
+    """
+    errores = []
+    df[col_dni] = df[col_dni].astype(str).str.strip()
+    
+    for idx, row in df.iterrows():
+        dni = row[col_dni]
+        identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
+        
+        # Validar que sea número de 8 dígitos
+        if not (dni.isdigit() and len(dni) == 8):
+            errores.append(f"Fila {idx + 2}: DNI inválido '{dni}' (debe ser 8 dígitos) - {identificador}")
+    
+    return errores
+
+def validar_correo(df, col_correo="CORREO INSTITUCIONAL"):
+    """
+    Valida formato básico de correo electrónico.
+    Retorna lista de errores.
+    """
+    errores = []
+    
+    for idx, row in df.iterrows():
+        correo = str(row[col_correo]).strip().lower()
+        identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
+        
+        # Validación básica: contiene @ y .
+        if "@" not in correo or "." not in correo.split("@")[-1]:
+            errores.append(f"Fila {idx + 2}: Correo inválido '{correo}' - {identificador}")
     
     return errores
 
@@ -276,7 +455,7 @@ elif st.session_state.paso_actual == 1:
             <h4>📄 Instrucciones</h4>
             <p>Sube el archivo Excel que contiene la nómina de alumnos.</p>
             <p><strong>Columnas requeridas:</strong></p>
-            <code>Paterno, Materno, Nombres, Nacimiento (DD/MM/YYYY), Sexo (M/F), Grado, Sección, Correo institucional, Neurodiversidad (Sí/No), DNI</code>
+            <code>Nº, Paterno, Materno, Nombres, Nacimiento (DD/MM/YYYY), Sexo (M/F), Grado, Sección, Correo institucional, Neurodiversidad (Sí/No), DNI</code>
         </div>
         """, unsafe_allow_html=True)
         
@@ -307,49 +486,104 @@ elif st.session_state.paso_actual == 1:
                         
                         df = df[cols_a_usar]
                         df.columns = [col.upper() for col in COLUMNAS_ARCHIVO1]
+
+                        # Eliminar filas con campos vacíos en PATERNO, MATERNO y NOMBRES
+                        df = limpiar_filas_vacias(df, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
                         
+                        df = convertir_numericas_a_entero(df, columnas=["GRADO"])
+
+                        # Convertir numéricas a enteros
                         df = homologar_dataframe(df)
+
+                        # Validar campos vacíos en PATERNO, MATERNO o NOMBRES
+                        columnas_obligatorias = ["PATERNO", "MATERNO", "NOMBRES"]
+                        filas_vacias = df[df[columnas_obligatorias].isnull().any(axis=1)]
+
+                        if not filas_vacias.empty:
+                            st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Archivo 1 - Nómina)")
+                            st.dataframe(filas_vacias, use_container_width=True)
+                            #st.stop()
                         
                         # Validaciones para Archivo 1 (nómina)
-                        errores_validacion = []
+                        errores_fatales = []
+                        alertas = []
                         
                         # 1. Validar y mapear grados
                         df, errores_grados = validar_y_mapear_grados(df, "GRADO")
-                        errores_validacion.extend(errores_grados)
+                        errores_fatales.extend(errores_grados)
                         
                         # 2. Validar sexo
                         errores_sexo = validar_sexo(df, "SEXO (M/F)")
-                        errores_validacion.extend(errores_sexo)
+                        errores_fatales.extend(errores_sexo)
                         
                         # 3. Validar secciones
                         errores_secciones = validar_secciones(df, "SECCIÓN")
-                        errores_validacion.extend(errores_secciones)
+                        errores_fatales.extend(errores_secciones)
+
+                        # 4. Validar neurodiversidad
+                        errores_neuro = validar_neurodiversidad(df, "NEURODIVERSIDAD (SÍ/NO)")
+                        alertas.extend(errores_neuro)
+                        
+                        # 5. Validar fecha
+                        errores_fecha = validar_fecha_nacimiento(df, "NACIMIENTO (DD/MM/YYYY)")
+                        alertas.extend(errores_fecha)
+                        
+                        # 6. Validar DNI
+                        errores_dni = validar_dni(df, "DNI")
+                        alertas.extend(errores_dni)
+                        
+                        # 7. Validar correo
+                        errores_correo = validar_correo(df, "CORREO INSTITUCIONAL")
+                        alertas.extend(errores_correo)
                         
                         # Mostrar errores si existen
-                        if errores_validacion:
+                        if errores_fatales:
                             st.error("❌ Se encontraron errores de validación:")
-                            with st.expander("Ver errores detallados", expanded=True):
-                                for error in errores_validacion[:50]:  # Mostrar máximo 50 errores
-                                    st.warning(error)
-                                if len(errores_validacion) > 50:
-                                    st.info(f"... y {len(errores_validacion) - 50} errores más")
+                            # Convertir lista de alertas a DataFrame
+                            df_errores_fatales = pd.DataFrame(alertas, columns=["Detalle de la Alerta"])
+                                
+                            # Mostrar tabla scrolleable
+                            st.dataframe(
+                                df_errores_fatales,
+                                use_container_width=True,
+                                height=220  # ajusta la altura visible (unas 5-6 filas aprox)
+                            )
+                                
+                            st.caption(f"🔎 Total de errores: {len(errores_fatales)}")
                             st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
+                            #st.stop()
+
                         else:
                             df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
-                            
                             st.session_state.archivo1_df = df
                             
-                            st.success("✅ Todas las validaciones pasaron correctamente")
-                        
-                        # Mostrar preview
-                        st.markdown("### 📊 Vista Previa de Datos")
-                        st.info(f"Total de registros: {len(df)}")
-                        st.dataframe(df.head(10), use_container_width=True)
+                            if alertas:
+                                st.warning("⚠️ Se detectaron advertencias en los datos (no bloquean el proceso):")
+                                with st.expander("Ver alertas detalladas", expanded=True):
+                                    # Convertir lista de alertas a DataFrame
+                                    df_alertas = pd.DataFrame(alertas, columns=["Detalle de la Alerta"])
+                                    
+                                    # Mostrar tabla scrolleable
+                                    st.dataframe(
+                                        df_alertas,
+                                        use_container_width=True,
+                                        height=220  # ajusta la altura visible (unas 5-6 filas aprox)
+                                    )
+                                    
+                                    st.caption(f"🔎 Total de alertas: {len(alertas)}")
+                            else:
+                                st.success("✅ Todas las validaciones pasaron correctamente")
+
+                        if not errores_fatales:
+                            # Mostrar preview
+                            st.markdown("### 📊 Vista Previa de Datos")
+                            st.info(f"Total de registros: {len(df)}")
+                            st.dataframe(df.head(10), use_container_width=True)
                         
                         # Botones de acción
                         col1, col2 = st.columns(2)
                         with col1:
-                            df_descarga = df.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                            df_descarga = df.drop(columns=["IDENTIFICADOR", "Nº"], errors="ignore")
                             buffer = BytesIO()
                             df_descarga.to_excel(buffer, index=False, engine="openpyxl")
                             buffer.seek(0)
@@ -363,7 +597,7 @@ elif st.session_state.paso_actual == 1:
                         with col2:
                             if st.button("➡️ Continuar al Paso 3", type="primary", use_container_width=True):
                                 st.session_state.paso_actual = 2
-                                st.rerun()
+                                #st.rerun()
                     
                     else:
                         st.warning("⚠️ No se pudo detectar la cabecera automáticamente")
@@ -397,6 +631,15 @@ elif st.session_state.paso_actual == 1:
                                 # Homologar datos
                                 df = homologar_dataframe(df)
                                 
+                                # Validar campos vacíos en PATERNO, MATERNO o NOMBRES
+                                columnas_obligatorias = ["PATERNO", "MATERNO", "NOMBRES"]
+                                filas_vacias = df[df[columnas_obligatorias].isnull().any(axis=1)]
+
+                                if not filas_vacias.empty:
+                                    st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Archivo 1 - Nómina)")
+                                    st.dataframe(filas_vacias, use_container_width=True)
+                                    #st.stop()
+                                
                                 # Validaciones para Archivo 1 (nómina)
                                 errores_validacion = []
                                 
@@ -409,8 +652,24 @@ elif st.session_state.paso_actual == 1:
                                 errores_validacion.extend(errores_sexo)
                                 
                                 # 3. Validar secciones
-                                errores_secciones = validar_secciones(df, "SECCION")
+                                errores_secciones = validar_secciones(df, "SECCIÓN")
                                 errores_validacion.extend(errores_secciones)
+
+                                # 4. Validar neurodiversidad
+                                errores_neuro = validar_neurodiversidad(df, "NEURODIVERSIDAD (SÍ/NO)")
+                                errores_validacion.extend(errores_neuro)
+                                
+                                # 5. Validar fecha
+                                errores_fecha = validar_fecha_nacimiento(df, "NACIMIENTO (DD/MM/YYYY)")
+                                errores_validacion.extend(errores_fecha)
+                                
+                                # 6. Validar DNI
+                                errores_dni = validar_dni(df, "DNI")
+                                errores_validacion.extend(errores_dni)
+                                
+                                # 7. Validar correo
+                                errores_correo = validar_correo(df, "CORREO INSTITUCIONAL")
+                                errores_validacion.extend(errores_correo)
                                 
                                 # Mostrar errores o continuar
                                 if errores_validacion:
@@ -424,7 +683,7 @@ elif st.session_state.paso_actual == 1:
                                     df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
                                     st.session_state.archivo1_df = df
                                     st.success("✅ Validaciones pasadas correctamente")
-                                    st.rerun()
+                                    #st.rerun()
                             else:
                                 st.error("❌ La fila seleccionada no contiene todas las columnas requeridas")
                 
@@ -466,7 +725,7 @@ elif st.session_state.paso_actual == 2:
         <h4>📄 Instrucciones</h4>
         <p>Sube el archivo Excel con las notas de los cursos.</p>
         <p><strong>Columnas requeridas:</strong></p>
-        <code>Paterno, Materno, Nombres, Curso, Grado, Sección,  Nota Vigesimal</code>
+        <code>Nro., Paterno, Materno, Nombres, Curso, Grado, Sección,  Nota Vigesimal</code>
     </div>
     """, unsafe_allow_html=True)
     
@@ -486,10 +745,10 @@ elif st.session_state.paso_actual == 2:
                 if not tiene_1p3p and not tiene_4p5s:
                     st.error("❌ El archivo no contiene ninguna de las hojas requeridas: '1P-3P' o '4P-5S'")
                     st.info(f"Hojas encontradas: {', '.join(hojas_disponibles)}")
-                    st.stop()
+                    #st.stop()
                 
                 # Mostrar información de hojas detectadas
-                st.success(f"✅ Hojas detectadas en el archivo:")
+                st.success(f"✅ Hojas detectadas en el archivo, Únicas Opciones ('1P-3P' o '4P-5S'):")
                 cols_info = st.columns(2)
                 with cols_info[0]:
                     if tiene_1p3p:
@@ -526,18 +785,37 @@ elif st.session_state.paso_actual == 2:
                         df_1p3p = df_1p3p[cols_a_usar]
                         df_1p3p.columns = [col.upper() for col in COLUMNAS_ARCHIVO2]
                         
+                        # Eliminar filas con campos vacíos en PATERNO, MATERNO y NOMBRES
+                        df_1p3p = limpiar_filas_vacias(df_1p3p, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
+
+                        # Convertir numéricas a enteros
+                        df_1p3p = convertir_numericas_a_entero(df_1p3p, columnas=["GRADO", "NOTA VIGESIMAL"])
+
                         # Homologar datos
                         df_1p3p = homologar_dataframe(df_1p3p)
+
+                        # 🔍 Validar campos vacíos en PATERNO, MATERNO o NOMBRES
+                        columnas_obligatorias = ["PATERNO", "MATERNO", "NOMBRES"]
+                        filas_vacias = df_1p3p[df_1p3p[columnas_obligatorias].isnull().any(axis=1)]
+
+                        if not filas_vacias.empty:
+                            st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Hoja 1P-3P)")
+                            st.dataframe(filas_vacias, use_container_width=True)
+                            #st.stop()
                         
                         # Validaciones para Archivo 2 - Hoja 1P-3P
                         errores_validacion_1p3p = []
-                        
+
+                        # Completar valores vacíos en NOTA VIGESIMAL con "NP"
+                        if "NOTA VIGESIMAL" in df_1p3p.columns:
+                            df_1p3p["NOTA VIGESIMAL"] = df_1p3p["NOTA VIGESIMAL"].fillna("NP").replace("", "NP")
+
                         # 1. Validar y mapear grados
                         df_1p3p, errores_grados = validar_y_mapear_grados(df_1p3p, "GRADO")
                         errores_validacion_1p3p.extend(errores_grados)
                         
                         # 2. Validar secciones
-                        errores_secciones = validar_secciones(df_1p3p, "SECCION")
+                        errores_secciones = validar_secciones(df_1p3p, "SECCIÓN")
                         errores_validacion_1p3p.extend(errores_secciones)
                         
                         # Mostrar errores de validación si existen
@@ -592,7 +870,7 @@ elif st.session_state.paso_actual == 2:
                                         st.session_state.archivo2_1p3p_df = df_1p3p
                                         
                                         st.success("✅ Cursos homologados correctamente en 1P-3P")
-                                        st.rerun()
+                                        #st.rerun()
                         
                         # Si no hay cursos inválidos
                         if len(cursos_invalidos_1p3p) == 0 or st.session_state.archivo2_1p3p_df is not None:
@@ -644,9 +922,19 @@ elif st.session_state.paso_actual == 2:
                     
                     df2 = df2[cols_a_usar]
                     df2.columns = [col.upper() for col in COLUMNAS_ARCHIVO2]
+
+                    # Eliminar filas con campos vacíos en PATERNO, MATERNO y NOMBRES
+                    df2 = limpiar_filas_vacias(df2, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
                     
+                    # Convertir numéricas a enteros
+                    df2 = convertir_numericas_a_entero(df2, columnas=["GRADO", "NOTA VIGESIMAL"])
+
                     # Homologar datos
                     df2 = homologar_dataframe(df2)
+
+                    # Completar valores vacíos en NOTA VIGESIMAL con "NP"
+                    if "NOTA VIGESIMAL" in df2.columns:
+                        df2["NOTA VIGESIMAL"] = df2["NOTA VIGESIMAL"].fillna("NP").replace("", "NP")
                     
                     # Validar campos vacíos
                     columnas_oblig = ["PATERNO", "MATERNO", "NOMBRES", "CURSO", "GRADO", "SECCIÓN", "NOTA VIGESIMAL"]
@@ -655,7 +943,7 @@ elif st.session_state.paso_actual == 2:
                     if not filas_vacias.empty:
                         st.error("❌ Se detectaron campos vacíos")
                         st.dataframe(filas_vacias, use_container_width=True)
-                        st.stop()
+                        #st.stop()
                     
                     # Validar cursos
                     cursos_invalidos = sorted(df2.loc[~df2["CURSO"].isin(st.session_state.cursos_equivalentes), "CURSO"].unique())
@@ -696,13 +984,13 @@ elif st.session_state.paso_actual == 2:
                                     df2 = df2[cols_orden]
                                     
                                     # Guardar en session_state
-                                    st.session_state.archivo2_df = df2
+                                    st.session_state.archivo2_4p5s_df = df2
                                     
                                     st.success("✅ Cursos homologados correctamente")
-                                    st.rerun()
+                                    #st.rerun()
                     
                     # Si no hay cursos inválidos
-                    if len(cursos_invalidos) == 0 or st.session_state.archivo2_df is not None:
+                    if len(cursos_invalidos) == 0 or st.session_state.archivo2_4p5s_df is not None:
                         df2["IDENTIFICADOR"] = crear_identificador(df2, "PATERNO", "MATERNO", "NOMBRES")
                         df2["NOTAS VIGESIMALES 75%"] = ""
                         df2["PROMEDIO"] = ""
@@ -712,7 +1000,7 @@ elif st.session_state.paso_actual == 2:
                         cols_orden.append("IDENTIFICADOR")
                         df2 = df2[cols_orden]
                         
-                        st.session_state.archivo2_df = df2
+                        st.session_state.archivo2_4p5s_df = df2
                         
                         df_4p5s_procesado = df2
                         
