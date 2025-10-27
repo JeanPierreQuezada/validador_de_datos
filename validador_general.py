@@ -409,6 +409,86 @@ def mostrar_stepper(paso_actual):
     
     st.divider()
 
+def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
+    """
+    Crea el archivo evaluador haciendo un full join entre archivo1 y archivo2_4p5s
+    usando IDENTIFICADOR como clave única.
+    
+    Args:
+        df_archivo1: DataFrame del archivo 1 con todos los alumnos
+        df_archivo2_4p5s: DataFrame del archivo 2 (4P-5S) con notas
+    
+    Returns:
+        DataFrame con estructura de archivo2_4p5s pero con todos los alumnos
+    """
+    # Mapear las columnas de archivo1 a las de archivo2
+    df1_base = df_archivo1[[
+        "IDENTIFICADOR", 
+        "PATERNO", 
+        "MATERNO", 
+        "NOMBRES", 
+        "GRADO", 
+        "SECCIÓN"
+    ]].copy()
+    
+    # Renombrar SECCION a SECCIÓN para que coincida con archivo2
+    #df1_base = df1_base.rename(columns={"SECCION": "SECCIÓN"})
+    
+    # Preparar archivo2 para el merge
+    df2_merge = df_archivo2_4p5s.copy()
+    
+    # Full outer join usando IDENTIFICADOR
+    df_evaluador = pd.merge(
+        df2_merge,
+        df1_base,
+        on="IDENTIFICADOR",
+        how="outer",
+        suffixes=("", "_archivo1")
+    )
+    
+    # Completar datos faltantes: si no hay datos de archivo2, usar los de archivo1
+    columnas_comunes = ["PATERNO", "MATERNO", "NOMBRES", "GRADO", "SECCIÓN"]
+    
+    for col in columnas_comunes:
+        col_archivo1 = f"{col}_archivo1"
+        if col_archivo1 in df_evaluador.columns:
+            # Si el valor de archivo2 está vacío, usar el de archivo1
+            df_evaluador[col] = df_evaluador[col].fillna(df_evaluador[col_archivo1])
+            # Si aún está vacío (era NaN), usar el de archivo1
+            mask_vacio = (df_evaluador[col] == "") | (df_evaluador[col].isna())
+            df_evaluador.loc[mask_vacio, col] = df_evaluador.loc[mask_vacio, col_archivo1]
+            # Eliminar columna temporal
+            df_evaluador = df_evaluador.drop(columns=[col_archivo1])
+    
+    # Asegurar que CURSO y NOTA VIGESIMAL existan (pueden estar vacíos para alumnos solo en archivo1)
+    if "CURSO" not in df_evaluador.columns:
+        df_evaluador["CURSO"] = ""
+    if "NOTA VIGESIMAL" not in df_evaluador.columns:
+        df_evaluador["NOTA VIGESIMAL"] = ""
+    
+    # Definir el orden correcto de las columnas (según archivo2_4p5s)
+    columnas_finales = [
+        "NRO.", "PATERNO", "MATERNO", "NOMBRES", "CURSO", 
+        "GRADO", "SECCIÓN", "NOTA VIGESIMAL", 
+        "NOTAS VIGESIMALES 75%", "PROMEDIO", "IDENTIFICADOR"
+    ]
+    
+    # Asegurar que todas las columnas existan
+    for col in columnas_finales:
+        if col not in df_evaluador.columns:
+            df_evaluador[col] = ""
+    
+    # Reordenar y seleccionar solo las columnas finales
+    df_evaluador = df_evaluador[columnas_finales]
+    
+    # Rellenar NaN restantes con cadenas vacías
+    df_evaluador = df_evaluador.fillna("")
+    
+    # Regenerar NRO. secuencial
+    df_evaluador["NRO."] = range(1, len(df_evaluador) + 1)
+    
+    return df_evaluador
+
 # ================================================
 # INTERFAZ PRINCIPAL
 # ================================================
@@ -1111,11 +1191,20 @@ elif st.session_state.paso_actual == 2:
                         
                         if col_idx < len(cols_descarga):
                             with cols_descarga[col_idx]:
-                                df_eval_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                                # NUEVA LÓGICA: Full join entre archivo1_df y archivo2_4p5s_df
+                                df_evaluador = crear_archivo_evaluador(
+                                    st.session_state.archivo1_df,
+                                    df_4p5s_procesado
+                                )
+                                
+                                # Eliminar columna IDENTIFICADOR y preparar para descarga
+                                df_eval_4p5s = df_evaluador.drop(columns=["IDENTIFICADOR"], errors="ignore")
                                 df_eval_4p5s["NOTA VIGESIMAL"] = df_eval_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
+                                
                                 buffer_eval_4p5s = BytesIO()
                                 df_eval_4p5s.to_excel(buffer_eval_4p5s, index=False, engine="openpyxl")
                                 buffer_eval_4p5s.seek(0)
+                                
                                 st.download_button(
                                     label="📥 4P-5S Evaluador",
                                     data=buffer_eval_4p5s,
