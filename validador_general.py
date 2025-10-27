@@ -163,37 +163,31 @@ def crear_identificador(df, col_paterno, col_materno, col_nombres):
 
 def normalizar_enie(texto):
     """
-    Normaliza texto a mayúsculas y elimina acentos, preservando Ñ
+    Normaliza texto a mayúsculas y elimina acentos, preservando Ñ mediante un marcador temporal para preservar la Ñ antes de la normalización Unicode.
+    Esto evita que la Ñ se descomponga en N + tilde y se pierda en el proceso.
     """
     if pd.isna(texto):
         return ""
     
     texto = str(texto).strip().upper()
     
-    # Normalizar caracteres Unicode
+    # SOLUCIÓN: Reemplazar Ñ por un marcador temporal único
+    texto = texto.replace('Ñ', '§ENIE§')
+    
+    # Normalizar caracteres Unicode (descompone acentos)
     texto_nfd = unicodedata.normalize('NFD', texto)
     
-    # Reconstruir el texto eliminando solo las marcas diacríticas (acentos) y con Ñ
-    resultado = []
-    for char in texto_nfd:
-        # Si es la Ñ, mantenerla
-        if char in ['Ñ', 'ñ']:
-            resultado.append('Ñ')
-        # Si no es una marca diacrítica (acento), incluirla
-        elif unicodedata.category(char) != 'Mn':
-            resultado.append(char)
+    # Eliminar solo las marcas diacríticas (acentos), mantener letras base
+    texto_sin_acentos = ''.join(
+        char for char in texto_nfd 
+        if unicodedata.category(char) != 'Mn'
+    )
     
-    return ''.join(resultado)
-
-def normalizar_columnas_texto(df, columnas):
-    """
-    Normaliza texto a mayúsculas y elimina acentos, preservando Ñ
-    """
-    for col in columnas:
-        df[col] = df[col].apply(normalizar_enie)
-        # Normalizar espacios múltiples
-        df[col] = df[col].str.replace(r'\s+', ' ', regex=True).str.strip()
-    return df
+    # Restaurar la Ñ desde el marcador temporal
+    texto_sin_acentos = texto_sin_acentos.replace('§ENIE§', 'Ñ')
+    
+    # Normalizar espacios múltiples y retornar
+    return ' '.join(texto_sin_acentos.split())
 
 def limpiar_filas_vacias(df, columnas_clave=None):
     """
@@ -240,7 +234,7 @@ def homologar_dataframe(df):
     if not filas_vacias.empty:
         st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Archivo 1 - Nómina)")
         st.dataframe(filas_vacias, use_container_width=True)
-        #st.stop()
+        st.stop()
 
     # Procesar todas las columnas
     for col in df.columns:
@@ -663,7 +657,7 @@ elif st.session_state.paso_actual == 1:
                         if not filas_vacias.empty:
                             st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Archivo 1 - Nómina)")
                             st.dataframe(filas_vacias, use_container_width=True)
-                            #st.stop()
+                            st.stop()
                         
                         # Validaciones para Archivo 1 (nómina)
                         errores_fatales = []
@@ -712,7 +706,7 @@ elif st.session_state.paso_actual == 1:
                                 
                             st.caption(f"🔎 Total de errores: {len(errores_fatales)}")
                             st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
-                            #st.stop()
+                            st.stop()
 
                         else:
                             df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
@@ -799,7 +793,7 @@ elif st.session_state.paso_actual == 1:
                                 if not filas_vacias.empty:
                                     st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Archivo 1 - Nómina)")
                                     st.dataframe(filas_vacias, use_container_width=True)
-                                    #st.stop()
+                                    st.stop()
                                 
                                 # Validaciones para Archivo 1 (nómina)
                                 errores_validacion = []
@@ -906,7 +900,7 @@ elif st.session_state.paso_actual == 2:
                 if not tiene_1p3p and not tiene_4p5s:
                     st.error("❌ El archivo no contiene ninguna de las hojas requeridas: '1P-3P' o '4P-5S'")
                     st.info(f"Hojas encontradas: {', '.join(hojas_disponibles)}")
-                    #st.stop()
+                    st.stop()
                 
                 # Mostrar información de hojas detectadas
                 st.success(f"✅ Hojas detectadas en el archivo, Únicas Opciones ('1P-3P' o '4P-5S'):")
@@ -962,7 +956,7 @@ elif st.session_state.paso_actual == 2:
                         if not filas_vacias.empty:
                             st.error("❌ Se detectaron campos vacíos en nombres o apellidos (Hoja 1P-3P)")
                             st.dataframe(filas_vacias, use_container_width=True)
-                            #st.stop()
+                            st.stop()
                         
                         # Validaciones para Archivo 2 - Hoja 1P-3P
                         errores_validacion_1p3p = []
@@ -1127,7 +1121,7 @@ elif st.session_state.paso_actual == 2:
                     if not filas_vacias.empty:
                         st.error("❌ Se detectaron campos vacíos")
                         st.dataframe(filas_vacias, use_container_width=True)
-                        #st.stop()
+                        st.stop()
                     
                     # Validar cursos
                     cursos_invalidos = sorted(df2.loc[~df2["CURSO"].isin(st.session_state.cursos_equivalentes), "CURSO"].unique())
