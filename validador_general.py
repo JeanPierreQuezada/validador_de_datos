@@ -67,7 +67,15 @@ MAPEO_GRADOS = {
     "1": "1P", "2": "2P", "3": "3P", "4": "4P", "5": "5P", "6": "6P",
     "7": "1S", "8": "2S", "9": "3S", "10": "4S", "11": "5S"
 }
-
+MAPEO_SECCIONES = {
+    "UNICO": "U",
+    "UNICA": "U"
+}
+LISTA_COLEGIOS = [
+    "Colegio San Juan",
+    "Colegio Santa María",
+    "Colegio Los Andes"
+]
 
 # ================================================
 # FUNCIONES AUXILIARES
@@ -253,7 +261,8 @@ def validar_y_mapear_grados(df, col_grado="GRADO"):
     df[col_grado] = df[col_grado].replace(MAPEO_GRADOS)
     
     # Validar grados
-    grados_invalidos = df[~df[col_grado].isin(GRADOS_VALIDOS)]
+    grados_invalidos = df.loc[~df[col_grado].isin(GRADOS_VALIDOS)]
+
     if len(grados_invalidos) > 0:
         for idx, row in grados_invalidos.iterrows():
             errores.append(f"Fila {idx + 2}: Grado inválido '{row[col_grado]}'")
@@ -268,7 +277,8 @@ def validar_sexo(df, col_sexo="SEXO (M/F)"):
     errores = []
     df[col_sexo] = df[col_sexo].astype(str).str.strip().str.upper()
     
-    sexos_invalidos = df[~df[col_sexo].isin(SEXO_VALIDO)]
+    sexos_invalidos = df.loc[~df[col_sexo].isin(SEXO_VALIDO)]
+
     if len(sexos_invalidos) > 0:
         for idx, row in sexos_invalidos.iterrows():
             errores.append(f"Fila {idx + 2}: Sexo inválido '{row[col_sexo]}' (debe ser M o F)")
@@ -277,13 +287,17 @@ def validar_sexo(df, col_sexo="SEXO (M/F)"):
 
 def validar_secciones(df, col_seccion="SECCIÓN"):
     """
-    Valida que las secciones sean válidas (A-G, U).
+    Valida que las secciones sean válidas (A-G, U, UNICO, UNICA y estas dos últimas reemplazarlas por U).
     Retorna lista de errores.
     """
     errores = []
     df[col_seccion] = df[col_seccion].astype(str).str.strip().str.upper()
     
-    secciones_invalidas = df[~df[col_seccion].isin(SECCIONES_VALIDAS)]
+    # (UNICO/UNICA -> U)
+    df[col_seccion] = df[col_seccion].replace(MAPEO_SECCIONES)
+
+    secciones_invalidas = df.loc[~df[col_seccion].isin(SECCIONES_VALIDAS)]
+
     if len(secciones_invalidas) > 0:
         for idx, row in secciones_invalidas.iterrows():
             errores.append(f"Fila {idx + 2}: Sección inválida '{row[col_seccion]}' (debe ser A-G o U)")
@@ -305,7 +319,8 @@ def validar_neurodiversidad(df, col_neuro="NEURODIVERSIDAD (SÍ/NO)"):
     }
     df[col_neuro] = df[col_neuro].replace(mapeo_neuro)
     
-    neuros_invalidas = df[~df[col_neuro].isin(["SÍ", "NO"])]
+    neuros_invalidas = df.loc[~df[col_neuro].isin(["SÍ", "NO"])]
+
     if len(neuros_invalidas) > 0:
         for idx, row in neuros_invalidas.iterrows():
             identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
@@ -419,17 +434,22 @@ if st.session_state.paso_actual == 0:
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        NOMBRES = st.text_input(
-            "Nombre del Colegio",
-            value=st.session_state.nombre_colegio,
-            placeholder="Ejemplo: Colegio San Martín de Porres",
-            help="Este Nombre aparecerá en los archivos descargados"
+        index_seleccionado = None
+
+        if st.session_state.nombre_colegio in LISTA_COLEGIOS:
+            index_seleccionado = LISTA_COLEGIOS.index(st.session_state.nombre_colegio)
+
+        NOMBRES = st.selectbox(
+            "Selecciona el colegio:",
+            options=LISTA_COLEGIOS,
+            index=index_seleccionado,
+            placeholder="Elige un colegio..."
         )
         
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("➡️ Continuar", type="primary", use_container_width=True):
-            if NOMBRES.strip():
+        if st.button("➡️ Continuar", type="primary", use_container_width=True, disabled = not NOMBRES):
+            if NOMBRES:
                 st.session_state.nombre_colegio = NOMBRES.strip()
                 st.session_state.paso_actual = 1
                 st.rerun()
@@ -794,7 +814,7 @@ elif st.session_state.paso_actual == 2:
                         # Homologar datos
                         df_1p3p = homologar_dataframe(df_1p3p)
 
-                        # 🔍 Validar campos vacíos en PATERNO, MATERNO o NOMBRES
+                        # Validar campos vacíos en PATERNO, MATERNO o NOMBRES
                         columnas_obligatorias = ["PATERNO", "MATERNO", "NOMBRES"]
                         filas_vacias = df_1p3p[df_1p3p[columnas_obligatorias].isnull().any(axis=1)]
 
@@ -810,11 +830,11 @@ elif st.session_state.paso_actual == 2:
                         if "NOTA VIGESIMAL" in df_1p3p.columns:
                             df_1p3p["NOTA VIGESIMAL"] = df_1p3p["NOTA VIGESIMAL"].fillna("NP").replace("", "NP")
 
-                        # 1. Validar y mapear grados
+                        # Validar y mapear grados
                         df_1p3p, errores_grados = validar_y_mapear_grados(df_1p3p, "GRADO")
                         errores_validacion_1p3p.extend(errores_grados)
                         
-                        # 2. Validar secciones
+                        # Validar secciones
                         errores_secciones = validar_secciones(df_1p3p, "SECCIÓN")
                         errores_validacion_1p3p.extend(errores_secciones)
                         
@@ -932,6 +952,29 @@ elif st.session_state.paso_actual == 2:
                     # Homologar datos
                     df2 = homologar_dataframe(df2)
 
+                    # Validaciones para Archivo 2 - Hoja 4P-5S
+                    errores_validacion_4p5s = []
+
+                    # Validar y mapear grados
+                    df2, errores_grados = validar_y_mapear_grados(df2, "GRADO")
+                    errores_validacion_4p5s.extend(errores_grados)
+
+                    # Validar secciones
+                    errores_secciones = validar_secciones(df2, "SECCIÓN")
+                    errores_validacion_4p5s.extend(errores_secciones)
+
+                    # Mostrar errores de validación si existen
+                    if errores_validacion_4p5s:
+                        st.error("❌ Errores de validación en 4P-5S:")
+                        with st.expander("Ver errores detallados", expanded=True):
+                            for error in errores_validacion_4p5s[:30]:
+                                st.warning(error)
+                            if len(errores_validacion_4p5s) > 30:
+                                st.info(f"... y {len(errores_validacion_4p5s) - 30} errores más")
+                        st.info("Por favor, corrige estos errores y vuelve a cargar el archivo")
+                    else:
+                        st.success("✅ Validaciones de grados y secciones pasadas (4P-5S)")
+
                     # Completar valores vacíos en NOTA VIGESIMAL con "NP"
                     if "NOTA VIGESIMAL" in df2.columns:
                         df2["NOTA VIGESIMAL"] = df2["NOTA VIGESIMAL"].fillna("NP").replace("", "NP")
@@ -1035,6 +1078,7 @@ elif st.session_state.paso_actual == 2:
                         with cols_descarga[col_idx]:
                             # Para 1P-3P (no hay NOTAS VIGESIMALES 75% ni PROMEDIO)
                             df_sin_notas_1p3p = df_1p3p_procesado.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                            df_sin_notas_1p3p["NOTA VIGESIMAL"] = df_sin_notas_1p3p["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                             buffer_1p3p = BytesIO()
                             df_sin_notas_1p3p.to_excel(buffer_1p3p, index=False, engine="openpyxl")
                             buffer_1p3p.seek(0)
@@ -1052,6 +1096,7 @@ elif st.session_state.paso_actual == 2:
                         if col_idx < len(cols_descarga):
                             with cols_descarga[col_idx]:
                                 df_sin_notas_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR", "NOTAS VIGESIMALES 75%", "PROMEDIO"], errors="ignore")
+                                df_sin_notas_4p5s["NOTA VIGESIMAL"] = df_sin_notas_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                                 buffer_4p5s = BytesIO()
                                 df_sin_notas_4p5s.to_excel(buffer_4p5s, index=False, engine="openpyxl")
                                 buffer_4p5s.seek(0)
@@ -1067,6 +1112,7 @@ elif st.session_state.paso_actual == 2:
                         if col_idx < len(cols_descarga):
                             with cols_descarga[col_idx]:
                                 df_eval_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                                df_eval_4p5s["NOTA VIGESIMAL"] = df_eval_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                                 buffer_eval_4p5s = BytesIO()
                                 df_eval_4p5s.to_excel(buffer_eval_4p5s, index=False, engine="openpyxl")
                                 buffer_eval_4p5s.seek(0)
