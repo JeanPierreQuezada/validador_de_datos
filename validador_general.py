@@ -1157,7 +1157,7 @@ elif st.session_state.paso_actual == 2:
                     if df_1p3p_procesado is not None:
                         with cols_descarga[col_idx]:
                             # Para 1P-3P (no hay NOTAS VIGESIMALES 75% ni PROMEDIO)
-                            df_sin_notas_1p3p = df_1p3p_procesado.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                            df_sin_notas_1p3p = df_1p3p_procesado.drop(columns=["IDENTIFICADOR", "NRO."], errors="ignore")
                             df_sin_notas_1p3p["NOTA VIGESIMAL"] = df_sin_notas_1p3p["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                             buffer_1p3p = BytesIO()
                             df_sin_notas_1p3p.to_excel(buffer_1p3p, index=False, engine="openpyxl")
@@ -1175,7 +1175,7 @@ elif st.session_state.paso_actual == 2:
                     if df_4p5s_procesado is not None:
                         if col_idx < len(cols_descarga):
                             with cols_descarga[col_idx]:
-                                df_sin_notas_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR", "NOTAS VIGESIMALES 75%", "PROMEDIO"], errors="ignore")
+                                df_sin_notas_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR", "NRO.", "NOTAS VIGESIMALES 75%", "PROMEDIO"], errors="ignore")
                                 df_sin_notas_4p5s["NOTA VIGESIMAL"] = df_sin_notas_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                                 buffer_4p5s = BytesIO()
                                 df_sin_notas_4p5s.to_excel(buffer_4p5s, index=False, engine="openpyxl")
@@ -1198,7 +1198,7 @@ elif st.session_state.paso_actual == 2:
                                 )
                                 
                                 # Eliminar columna IDENTIFICADOR y preparar para descarga
-                                df_eval_4p5s = df_evaluador.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                                df_eval_4p5s = df_evaluador.drop(columns=["IDENTIFICADOR", "NRO."], errors="ignore")
                                 df_eval_4p5s["NOTA VIGESIMAL"] = df_eval_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                                 
                                 buffer_eval_4p5s = BytesIO()
