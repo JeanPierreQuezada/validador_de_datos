@@ -163,31 +163,18 @@ def crear_identificador(df, col_paterno, col_materno, col_nombres):
 
 def normalizar_enie(texto):
     """
-    Normaliza texto a mayúsculas y elimina acentos, preservando Ñ mediante un marcador temporal para preservar la Ñ antes de la normalización Unicode.
-    Esto evita que la Ñ se descomponga en N + tilde y se pierda en el proceso.
+    Normaliza texto a mayúsculas preservando TODOS los acentos (tildes y Ñ)
     """
     if pd.isna(texto):
         return ""
     
+    # Convertir a mayúsculas y limpiar espacios
     texto = str(texto).strip().upper()
     
-    # SOLUCIÓN: Reemplazar Ñ por un marcador temporal único
-    texto = texto.replace('Ñ', '§ENIE§')
+    # Normalizar espacios múltiples
+    texto = ' '.join(texto.split())
     
-    # Normalizar caracteres Unicode (descompone acentos)
-    texto_nfd = unicodedata.normalize('NFD', texto)
-    
-    # Eliminar solo las marcas diacríticas (acentos), mantener letras base
-    texto_sin_acentos = ''.join(
-        char for char in texto_nfd 
-        if unicodedata.category(char) != 'Mn'
-    )
-    
-    # Restaurar la Ñ desde el marcador temporal
-    texto_sin_acentos = texto_sin_acentos.replace('§ENIE§', 'Ñ')
-    
-    # Normalizar espacios múltiples y retornar
-    return ' '.join(texto_sin_acentos.split())
+    return texto
 
 def limpiar_filas_vacias(df, columnas_clave=None):
     """
@@ -663,31 +650,31 @@ elif st.session_state.paso_actual == 1:
                         errores_fatales = []
                         alertas = []
                         
-                        # 1. Validar y mapear grados
+                        # Validar y mapear grados
                         df, errores_grados = validar_y_mapear_grados(df, "GRADO")
                         errores_fatales.extend(errores_grados)
                         
-                        # 2. Validar sexo
+                        # Validar sexo
                         errores_sexo = validar_sexo(df, "SEXO (M/F)")
                         errores_fatales.extend(errores_sexo)
                         
-                        # 3. Validar secciones
+                        # Validar secciones
                         errores_secciones = validar_secciones(df, "SECCIÓN")
                         errores_fatales.extend(errores_secciones)
 
-                        # 4. Validar neurodiversidad
+                        # Validar neurodiversidad
                         errores_neuro = validar_neurodiversidad(df, "NEURODIVERSIDAD (SÍ/NO)")
                         alertas.extend(errores_neuro)
                         
-                        # 5. Validar fecha
+                        # Validar fecha
                         errores_fecha = validar_fecha_nacimiento(df, "NACIMIENTO (DD/MM/YYYY)")
                         alertas.extend(errores_fecha)
                         
-                        # 6. Validar DNI
+                        # Validar DNI
                         errores_dni = validar_dni(df, "DNI")
                         alertas.extend(errores_dni)
                         
-                        # 7. Validar correo
+                        # Validar correo
                         errores_correo = validar_correo(df, "CORREO INSTITUCIONAL")
                         alertas.extend(errores_correo)
                         
@@ -752,7 +739,7 @@ elif st.session_state.paso_actual == 1:
                         with col2:
                             if st.button("➡️ Continuar al Paso 3", type="primary", use_container_width=True):
                                 st.session_state.paso_actual = 2
-                                #st.rerun()
+                                st.rerun()
                     
                     else:
                         st.warning("⚠️ No se pudo detectar la cabecera automáticamente")
@@ -796,49 +783,99 @@ elif st.session_state.paso_actual == 1:
                                     st.stop()
                                 
                                 # Validaciones para Archivo 1 (nómina)
-                                errores_validacion = []
+                                errores_fatales = []
+                                alertas = []
                                 
-                                # 1. Validar y mapear grados
+                                # Validar y mapear grados
                                 df, errores_grados = validar_y_mapear_grados(df, "GRADO")
-                                errores_validacion.extend(errores_grados)
+                                errores_fatales.extend(errores_grados)
                                 
-                                # 2. Validar sexo
+                                # Validar sexo
                                 errores_sexo = validar_sexo(df, "SEXO (M/F)")
-                                errores_validacion.extend(errores_sexo)
+                                errores_fatales.extend(errores_sexo)
                                 
-                                # 3. Validar secciones
+                                # Validar secciones
                                 errores_secciones = validar_secciones(df, "SECCIÓN")
-                                errores_validacion.extend(errores_secciones)
+                                errores_fatales.extend(errores_secciones)
 
-                                # 4. Validar neurodiversidad
+                                # Validar neurodiversidad
                                 errores_neuro = validar_neurodiversidad(df, "NEURODIVERSIDAD (SÍ/NO)")
-                                errores_validacion.extend(errores_neuro)
+                                alertas.extend(errores_neuro)
                                 
-                                # 5. Validar fecha
+                                # Validar fecha
                                 errores_fecha = validar_fecha_nacimiento(df, "NACIMIENTO (DD/MM/YYYY)")
-                                errores_validacion.extend(errores_fecha)
+                                alertas.extend(errores_fecha)
                                 
-                                # 6. Validar DNI
+                                # Validar DNI
                                 errores_dni = validar_dni(df, "DNI")
-                                errores_validacion.extend(errores_dni)
+                                alertas.extend(errores_dni)
                                 
-                                # 7. Validar correo
+                                # Validar correo
                                 errores_correo = validar_correo(df, "CORREO INSTITUCIONAL")
-                                errores_validacion.extend(errores_correo)
+                                alertas.extend(errores_correo)
                                 
-                                # Mostrar errores o continuar
-                                if errores_validacion:
+                                # Mostrar errores si existen
+                                if errores_fatales:
                                     st.error("❌ Se encontraron errores de validación:")
-                                    with st.expander("Ver errores detallados", expanded=True):
-                                        for error in errores_validacion[:50]:
-                                            st.warning(error)
-                                        if len(errores_validacion) > 50:
-                                            st.info(f"... y {len(errores_validacion) - 50} errores más")
+                                    # Convertir lista de alertas a DataFrame
+                                    df_errores_fatales = pd.DataFrame(alertas, columns=["Detalle de la Alerta"])
+                                        
+                                    # Mostrar tabla scrolleable
+                                    st.dataframe(
+                                        df_errores_fatales,
+                                        use_container_width=True,
+                                        height=220  # ajusta la altura visible (unas 5-6 filas aprox)
+                                    )
+                                        
+                                    st.caption(f"🔎 Total de errores: {len(errores_fatales)}")
+                                    st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
+                                    st.stop()
+
                                 else:
                                     df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
                                     st.session_state.archivo1_df = df
-                                    st.success("✅ Validaciones pasadas correctamente")
-                                    #st.rerun()
+                                    
+                                    if alertas:
+                                        st.warning("⚠️ Se detectaron advertencias en los datos (no bloquean el proceso):")
+                                        with st.expander("Ver alertas detalladas", expanded=True):
+                                            # Convertir lista de alertas a DataFrame
+                                            df_alertas = pd.DataFrame(alertas, columns=["Detalle de la Alerta"])
+                                            
+                                            # Mostrar tabla scrolleable
+                                            st.dataframe(
+                                                df_alertas,
+                                                use_container_width=True,
+                                                height=220  # ajusta la altura visible (unas 5-6 filas aprox)
+                                            )
+                                            
+                                            st.caption(f"🔎 Total de alertas: {len(alertas)}")
+                                    else:
+                                        st.success("✅ Todas las validaciones pasaron correctamente")
+
+                                if not errores_fatales:
+                                    # Mostrar preview
+                                    st.markdown("### 📊 Vista Previa de Datos")
+                                    st.info(f"Total de registros: {len(df)}")
+                                    st.dataframe(df.head(10), use_container_width=True)
+                                
+                                # Botones de acción
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    df_descarga = df.drop(columns=["IDENTIFICADOR", "Nº"], errors="ignore")
+                                    buffer = BytesIO()
+                                    df_descarga.to_excel(buffer, index=False, engine="openpyxl")
+                                    buffer.seek(0)
+                                    st.download_button(
+                                        label="💾 Descargar Archivo Homologado",
+                                        data=buffer,
+                                        file_name=f"{st.session_state.nombre_colegio}_nomina_RV.xlsx",
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        use_container_width=True
+                                    )
+                                with col2:
+                                    if st.button("➡️ Continuar al Paso 3", type="primary", use_container_width=True):
+                                        st.session_state.paso_actual = 2
+                                        st.rerun()
                             else:
                                 st.error("❌ La fila seleccionada no contiene todas las columnas requeridas")
                 
@@ -1025,7 +1062,7 @@ elif st.session_state.paso_actual == 2:
                                         st.session_state.archivo2_1p3p_df = df_1p3p
                                         
                                         st.success("✅ Cursos homologados correctamente en 1P-3P")
-                                        #st.rerun()
+                                        st.rerun()
                         
                         # Si no hay cursos inválidos
                         if len(cursos_invalidos_1p3p) == 0 or st.session_state.archivo2_1p3p_df is not None:
@@ -1165,7 +1202,7 @@ elif st.session_state.paso_actual == 2:
                                     st.session_state.archivo2_4p5s_df = df2
                                     
                                     st.success("✅ Cursos homologados correctamente")
-                                    #st.rerun()
+                                    st.rerun()
                     
                     # Si no hay cursos inválidos
                     if len(cursos_invalidos) == 0 or st.session_state.archivo2_4p5s_df is not None:
