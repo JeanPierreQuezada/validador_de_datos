@@ -315,19 +315,58 @@ def validar_y_mapear_grados(df, col_grado="GRADO"):
     
     return df, errores
 
+def inferir_sexo_por_nombre(nombre):
+    """
+    Infiere el sexo basándose en el nombre.
+    Retorna 'M' o 'F' según terminaciones comunes en español.
+    """
+    if pd.isna(nombre) or str(nombre).strip() == "":
+        return "M"  # Por defecto M si no hay nombre
+    
+    nombre = str(nombre).strip().upper()
+    primer_nombre = nombre.split()[0] if nombre else ""
+    
+    # Terminaciones típicamente femeninas
+    terminaciones_femeninas = ['A', 'IA', 'INA', 'ELA', 'ANA', 'LIA', 'RIA', 'TA', 'DA']
+    # Nombres específicamente femeninos comunes
+    nombres_femeninos = ['MARIA', 'CARMEN', 'ROSA', 'LUZ', 'SOL', 'MERCEDES', 'BEATRIZ', 'INES', 'ISABEL']
+    
+    if primer_nombre in nombres_femeninos:
+        return "F"
+    
+    for term in terminaciones_femeninas:
+        if primer_nombre.endswith(term):
+            return "F"
+    
+    return "M"  # Por defecto masculino
+
 def validar_sexo(df, col_sexo="SEXO (M/F)"):
     """
     Valida que el sexo sea M o F.
-    Retorna lista de errores.
+    Si está vacío, infiere el sexo según el nombre del alumno.
+    Retorna lista de errores (ahora solo para casos que no se puedan resolver).
     """
     errores = []
     df[col_sexo] = df[col_sexo].astype(str).str.strip().str.upper()
     
-    sexos_invalidos = df.loc[~df[col_sexo].isin(SEXO_VALIDO)]
-
-    if len(sexos_invalidos) > 0:
-        for idx, row in sexos_invalidos.iterrows():
-            errores.append(f"Fila {idx + 2}: Sexo inválido '{row[col_sexo]}' (debe ser M o F)")
+    # NUEVA LÓGICA: Reemplazar valores vacíos o inválidos por inferencia basada en nombre
+    mask_vacios_invalidos = ~df[col_sexo].isin(SEXO_VALIDO)
+    
+    if mask_vacios_invalidos.any():
+        for idx in df[mask_vacios_invalidos].index:
+            nombre = df.loc[idx, "NOMBRES"] if "NOMBRES" in df.columns else ""
+            sexo_inferido = inferir_sexo_por_nombre(nombre)
+            df.loc[idx, col_sexo] = sexo_inferido
+            # Se registra como advertencia informativa (no error crítico)
+            identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
+            errores.append(f"INFO - Fila {idx + 2}: Sexo vacío/inválido, se asignó '{sexo_inferido}' según nombre - {identificador}")
+    
+    # LÓGICA PREVIA
+    # sexos_invalidos = df.loc[~df[col_sexo].isin(SEXO_VALIDO)]
+    # if len(sexos_invalidos) > 0:
+    #     for idx, row in sexos_invalidos.iterrows():
+    #         identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
+    #         errores.append(f"Fila {idx + 2}: Sexo inválido '{row[col_sexo]}' (debe ser M o F) - {identificador}")
     
     return errores
 
@@ -679,7 +718,7 @@ elif st.session_state.paso_actual == 1:
                         
                         # Validar sexo
                         errores_sexo = validar_sexo(df, "SEXO (M/F)")
-                        errores_fatales.extend(errores_sexo)
+                        alertas.extend(errores_sexo)
                         
                         # Validar secciones
                         errores_secciones = validar_secciones(df, "SECCIÓN")
