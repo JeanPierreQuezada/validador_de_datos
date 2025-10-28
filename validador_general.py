@@ -483,14 +483,33 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
     # Preparar archivo2 para el merge
     df2_merge = df_archivo2_4p5s.copy()
     
+    # Marcar el origen de cada registro ANTES del merge
+    df2_merge['_origen'] = 'archivo2'
+    df1_base['_origen'] = 'archivo1'
+
     # Full outer join usando IDENTIFICADOR
     df_evaluador = pd.merge(
         df2_merge,
         df1_base,
         on="IDENTIFICADOR",
         how="outer",
-        suffixes=("", "_archivo1")
+        suffixes=("", "_archivo1"),
+        indicator=True
     )
+    
+    # Crear columna Observaciones basada en el origen
+    def asignar_observacion(row):
+        if row['_merge'] == 'both':  # Aparece en ambos archivos
+            return ''
+        elif row['_merge'] == 'right_only':  # Solo en archivo1
+            return 'SN'
+        else:  # 'left_only' - Solo en archivo2
+            return 'NA'
+    
+    df_evaluador['OBSERVACIONES'] = df_evaluador.apply(asignar_observacion, axis=1)
+    
+    # Eliminar columnas auxiliares
+    df_evaluador = df_evaluador.drop(columns=['_merge', '_origen'], errors='ignore')
     
     # Completar datos faltantes: si no hay datos de archivo2, usar los de archivo1
     columnas_comunes = ["PATERNO", "MATERNO", "NOMBRES", "GRADO", "SECCIÓN"]
@@ -516,7 +535,7 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
     columnas_finales = [
         "NRO.", "PATERNO", "MATERNO", "NOMBRES", "CURSO", 
         "GRADO", "SECCIÓN", "NOTA VIGESIMAL", 
-        "NOTAS VIGESIMALES 75%", "PROMEDIO", "IDENTIFICADOR"
+        "NOTAS VIGESIMALES 75%", "PROMEDIO", "IDENTIFICADOR", "OBSERVACIONES"
     ]
     
     # Asegurar que todas las columnas existan
@@ -1160,7 +1179,7 @@ elif st.session_state.paso_actual == 2:
                         st.caption(f"🔎 Total de errores: {len(errores_validacion_4p5s)}")
                         st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
                         st.stop()
-                        
+
                     else:
                         st.success("✅ Validaciones de grados y secciones pasadas (4P-5S)")
 
@@ -1300,7 +1319,7 @@ elif st.session_state.paso_actual == 2:
                         
                         if col_idx < len(cols_descarga):
                             with cols_descarga[col_idx]:
-                                # NUEVA LÓGICA: Full join entre archivo1_df y archivo2_4p5s_df
+                                # Full join entre archivo1_df y archivo2_4p5s_df
                                 df_evaluador = crear_archivo_evaluador(
                                     st.session_state.archivo1_df,
                                     df_4p5s_procesado
