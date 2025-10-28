@@ -51,7 +51,7 @@ if "cursos_equivalentes" not in st.session_state:
 # CONSTANTES
 # ================================================
 COLUMNAS_ARCHIVO1 = [
-    "Nº", "Paterno", "Materno", "Nombres", "Nacimiento (DD/MM/YYYY)", "Sexo (M/F)",
+    "Nro.", "Paterno", "Materno", "Nombres", "Nacimiento (DD/MM/YYYY)", "Sexo (M/F)",
     "Grado", "Sección", "Correo institucional", "Neurodiversidad (Sí/No)", "DNI"
 ]
 
@@ -61,7 +61,7 @@ COLUMNAS_ARCHIVO2 = [
 
 # Constantes de validación
 SEXO_VALIDO = ["M", "F"]
-SECCIONES_VALIDAS = ["A", "B", "C", "D", "E", "F", "G", "U", "UNICO", "UNICA"]
+SECCIONES_VALIDAS = ["A", "B", "C", "D", "E", "F", "G", "U", "UNICO", "UNICA", "ÚNICO", "ÚNICA", "Único", "Única"]
 GRADOS_VALIDOS = ["1P", "2P", "3P", "4P", "5P", "6P", "1S", "2S", "3S", "4S", "5S"]
 MAPEO_GRADOS = {
     "1": "1P", "2": "2P", "3": "3P", "4": "4P", "5": "5P", "6": "6P",
@@ -69,7 +69,11 @@ MAPEO_GRADOS = {
 }
 MAPEO_SECCIONES = {
     "UNICO": "U",
-    "UNICA": "U"
+    "UNICA": "U",
+    "ÚNICO": "U", 
+    "ÚNICA": "U", 
+    "Único": "U", 
+    "Única": "U"
 }
 LISTA_COLEGIOS = [
     "Colegio Ateneo la Molina",
@@ -597,7 +601,7 @@ elif st.session_state.paso_actual == 1:
             <h4>📄 Instrucciones</h4>
             <p>Sube el archivo Excel que contiene la nómina de alumnos.</p>
             <p><strong>Columnas requeridas:</strong></p>
-            <code>Nº, Paterno, Materno, Nombres, Nacimiento (DD/MM/YYYY), Sexo (M/F), Grado, Sección, Correo institucional, Neurodiversidad (Sí/No), DNI</code>
+            <code>Nro., Paterno, Materno, Nombres, Nacimiento (DD/MM/YYYY), Sexo (M/F), Grado, Sección, Correo institucional, Neurodiversidad (Sí/No), DNI</code>
         </div>
         """, unsafe_allow_html=True)
         
@@ -682,7 +686,7 @@ elif st.session_state.paso_actual == 1:
                         if errores_fatales:
                             st.error("❌ Se encontraron errores de validación:")
                             # Convertir lista de alertas a DataFrame
-                            df_errores_fatales = pd.DataFrame(alertas, columns=["Detalle de la Alerta"])
+                            df_errores_fatales = pd.DataFrame(errores_fatales, columns=["Detalle de los errores críticos"])
                                 
                             # Mostrar tabla scrolleable
                             st.dataframe(
@@ -694,7 +698,7 @@ elif st.session_state.paso_actual == 1:
                             st.caption(f"🔎 Total de errores: {len(errores_fatales)}")
                             st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
                             st.stop()
-
+                            
                         else:
                             df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
                             st.session_state.archivo1_df = df
@@ -818,7 +822,7 @@ elif st.session_state.paso_actual == 1:
                                 if errores_fatales:
                                     st.error("❌ Se encontraron errores de validación:")
                                     # Convertir lista de alertas a DataFrame
-                                    df_errores_fatales = pd.DataFrame(alertas, columns=["Detalle de la Alerta"])
+                                    df_errores_fatales = pd.DataFrame(errores_fatales, columns=["Detalle de la Alerta"])
                                         
                                     # Mostrar tabla scrolleable
                                     st.dataframe(
@@ -1013,12 +1017,18 @@ elif st.session_state.paso_actual == 2:
                         # Mostrar errores de validación si existen
                         if errores_validacion_1p3p:
                             st.error("❌ Errores de validación en 1P-3P:")
-                            with st.expander("Ver errores detallados", expanded=True):
-                                for error in errores_validacion_1p3p[:30]:
-                                    st.warning(error)
-                                if len(errores_validacion_1p3p) > 30:
-                                    st.info(f"... y {len(errores_validacion_1p3p) - 30} errores más")
-                            st.info("Por favor, corrige estos errores y vuelve a cargar el archivo")
+                            df_errores_fatales_1p3p = pd.DataFrame(errores_validacion_1p3p, columns=["Detalle de los errores críticos"])
+                                
+                            # Mostrar tabla scrolleable
+                            st.dataframe(
+                                df_errores_fatales_1p3p,
+                                use_container_width=True,
+                                height=220  # ajusta la altura visible (unas 5-6 filas aprox)
+                            )
+                                
+                            st.caption(f"🔎 Total de errores: {len(errores_validacion_1p3p)}")
+                            st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
+                            st.stop()
                         else:
                             st.success("✅ Validaciones de grados y secciones pasadas (1P-3P)")
                         
@@ -1138,12 +1148,19 @@ elif st.session_state.paso_actual == 2:
                     # Mostrar errores de validación si existen
                     if errores_validacion_4p5s:
                         st.error("❌ Errores de validación en 4P-5S:")
-                        with st.expander("Ver errores detallados", expanded=True):
-                            for error in errores_validacion_4p5s[:30]:
-                                st.warning(error)
-                            if len(errores_validacion_4p5s) > 30:
-                                st.info(f"... y {len(errores_validacion_4p5s) - 30} errores más")
-                        st.info("Por favor, corrige estos errores y vuelve a cargar el archivo")
+                        df_errores_fatales_4p5s = pd.DataFrame(errores_validacion_4p5s, columns=["Detalle de los errores críticos"])
+                                
+                        # Mostrar tabla scrolleable
+                        st.dataframe(
+                            df_errores_fatales_4p5s,
+                            use_container_width=True,
+                            height=220  # ajusta la altura visible (unas 5-6 filas aprox)
+                        )
+                                
+                        st.caption(f"🔎 Total de errores: {len(errores_validacion_4p5s)}")
+                        st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
+                        st.stop()
+                        
                     else:
                         st.success("✅ Validaciones de grados y secciones pasadas (4P-5S)")
 
