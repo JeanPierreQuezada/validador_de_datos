@@ -208,7 +208,7 @@ def limpiar_filas_vacias(df, columnas_clave=None):
     # Contar registros originales
     total_original = len(df)
     
-    # Filtrar: mantener solo filas donde AL MENOS UNA columna clave tenga datos
+    # Filtrar: mantener solo filas con almenos una columna clave tenga datos
     df_limpio = df.dropna(subset=columnas_clave, how='all').copy()
     
     # Eliminar filas donde todas las columnas clave sean strings vacíos
@@ -396,14 +396,6 @@ def validar_sexo(df, col_sexo="SEXO (M/F)"):
             # Se registra como advertencia informativa (no error crítico)
             identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
             errores.append(f"INFO - Fila {idx + 2}: Sexo vacío/inválido, se asignó '{sexo_inferido}' según nombre - {identificador}")
-    
-    # LÓGICA PREVIA
-    # sexos_invalidos = df.loc[~df[col_sexo].isin(SEXO_VALIDO)]
-    # if len(sexos_invalidos) > 0:
-    #     for idx, row in sexos_invalidos.iterrows():
-    #         identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
-    #         errores.append(f"Fila {idx + 2}: Sexo inválido '{row[col_sexo]}' (debe ser M o F) - {identificador}")
-    
     return errores
 
 def validar_secciones(df, col_seccion="SECCIÓN"):
@@ -551,9 +543,6 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
         "GRADO", 
         "SECCIÓN"
     ]].copy()
-    
-    # Renombrar SECCION a SECCIÓN para que coincida con archivo2
-    #df1_base = df1_base.rename(columns={"SECCION": "SECCIÓN"})
     
     # Preparar archivo2 para el merge
     df2_merge = df_archivo2_4p5s.copy()
@@ -918,9 +907,6 @@ elif st.session_state.paso_actual == 1:
                         col1, col2 = st.columns(2)
                         with col1:
                             df_descarga = df.drop(columns=["IDENTIFICADOR", "Nº"], errors="ignore")
-                            #buffer = BytesIO()
-                            #df_descarga.to_excel(buffer, index=False, engine="openpyxl")
-                            #buffer.seek(0)
                             buffer = guardar_con_formato_original(
                                 df_procesado=df_descarga,
                                 archivo_original_bytes=st.session_state.archivo1_bytes,
@@ -1060,9 +1046,6 @@ elif st.session_state.paso_actual == 1:
                                 col1, col2 = st.columns(2)
                                 with col1:
                                     df_descarga = df.drop(columns=["IDENTIFICADOR", "Nº"], errors="ignore")
-                                    #buffer = BytesIO()
-                                    #df_descarga.to_excel(buffer, index=False, engine="openpyxl")
-                                    #buffer.seek(0)
                                     buffer = guardar_con_formato_original(
                                         df_procesado=df_descarga,
                                         archivo_original_bytes=st.session_state.archivo1_bytes,
@@ -1302,8 +1285,11 @@ elif st.session_state.paso_actual == 2:
                                 st.info(f"Total de registros: {len(df_1p3p)}")
                                 st.dataframe(df_1p3p, use_container_width=True)
                     else:
+                        st.error("❌ Error de cabecera en la hoja 1P-3P")
                         st.warning("⚠️ No se pudo detectar cabecera automáticamente en 1P-3P")
-                        st.info("Por favor, verifica que la hoja tenga las columnas correctas")
+                        st.info("Por favor, verifica que la hoja tenga las columnas correctas:")
+                        st.code("Nro., Paterno, Materno, Nombres, Curso, Grado, Sección, Nota Vigesimal")
+                        st.stop()
                 
                 # ====================================
                 # PROCESAR HOJA 4P-5S (Homologación completa)
@@ -1322,134 +1308,136 @@ elif st.session_state.paso_actual == 2:
                         
                         df2 = pd.read_excel(archivo2, sheet_name="4P-5S", header=fila_detectada2)
                     
-                    # Procesar columnas
-                    columnas_norm = {c.strip().lower(): c for c in df2.columns}
-                    cols_a_usar = []
-                    for col_req in COLUMNAS_ARCHIVO2:
-                        col_norm = col_req.strip().lower()
-                        if col_norm in columnas_norm:
-                            cols_a_usar.append(columnas_norm[col_norm])
-                    
-                    df2 = df2[cols_a_usar]
-                    df2.columns = [col.upper() for col in COLUMNAS_ARCHIVO2]
+                        # Procesar columnas
+                        columnas_norm = {c.strip().lower(): c for c in df2.columns}
+                        cols_a_usar = []
+                        for col_req in COLUMNAS_ARCHIVO2:
+                            col_norm = col_req.strip().lower()
+                            if col_norm in columnas_norm:
+                                cols_a_usar.append(columnas_norm[col_norm])
+                        
+                        df2 = df2[cols_a_usar]
+                        df2.columns = [col.upper() for col in COLUMNAS_ARCHIVO2]
 
-                    # Eliminar filas con campos vacíos en PATERNO, MATERNO y NOMBRES
-                    df2 = limpiar_filas_vacias(df2, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
-                    
-                    # Convertir numéricas a enteros
-                    df2 = convertir_numericas_a_entero(df2, columnas=["GRADO", "NOTA VIGESIMAL"])
+                        # Eliminar filas con campos vacíos en PATERNO, MATERNO y NOMBRES
+                        df2 = limpiar_filas_vacias(df2, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
+                        
+                        # Convertir numéricas a enteros
+                        df2 = convertir_numericas_a_entero(df2, columnas=["GRADO", "NOTA VIGESIMAL"])
 
-                    # Homologar datos
-                    df2 = homologar_dataframe(df2)
+                        # Homologar datos
+                        df2 = homologar_dataframe(df2)
 
-                    # Validaciones para Archivo 2 - Hoja 4P-5S
-                    errores_validacion_4p5s = []
+                        # Validaciones para Archivo 2 - Hoja 4P-5S
+                        errores_validacion_4p5s = []
 
-                    # Validar y mapear grados
-                    df2, errores_grados = validar_y_mapear_grados(df2, "GRADO", tipo_validacion="4p5s")
-                    errores_validacion_4p5s.extend(errores_grados)
+                        # Validar y mapear grados
+                        df2, errores_grados = validar_y_mapear_grados(df2, "GRADO", tipo_validacion="4p5s")
+                        errores_validacion_4p5s.extend(errores_grados)
 
-                    # Validar secciones
-                    errores_secciones = validar_secciones(df2, "SECCIÓN")
-                    errores_validacion_4p5s.extend(errores_secciones)
+                        # Validar secciones
+                        errores_secciones = validar_secciones(df2, "SECCIÓN")
+                        errores_validacion_4p5s.extend(errores_secciones)
 
-                    # Mostrar errores de validación si existen
-                    if errores_validacion_4p5s:
-                        st.error("❌ Errores de validación en 4P-5S:")
-                        df_errores_fatales_4p5s = pd.DataFrame(errores_validacion_4p5s, columns=["Detalle de los errores críticos"])
+                        # Mostrar errores de validación si existen
+                        if errores_validacion_4p5s:
+                            st.error("❌ Errores de validación en 4P-5S:")
+                            df_errores_fatales_4p5s = pd.DataFrame(errores_validacion_4p5s, columns=["Detalle de los errores críticos"])
+                                    
+                            # Mostrar tabla scrolleable
+                            st.dataframe(
+                                df_errores_fatales_4p5s,
+                                use_container_width=True,
+                                height=220  # ajusta la altura visible (unas 5-6 filas aprox)
+                            )
+                                    
+                            st.caption(f"🔎 Total de errores: {len(errores_validacion_4p5s)}")
+                            st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
+                            st.stop()
+
+                        else:
+                            st.success("✅ Validaciones de grados y secciones pasadas (4P-5S)")
+
+                        # Completar valores vacíos en NOTA VIGESIMAL con "NP"
+                        if "NOTA VIGESIMAL" in df2.columns:
+                            df2["NOTA VIGESIMAL"] = df2["NOTA VIGESIMAL"].fillna("NP").replace("", "NP")
+                        
+                        # Validar campos vacíos
+                        columnas_oblig = ["PATERNO", "MATERNO", "NOMBRES", "CURSO", "GRADO", "SECCIÓN", "NOTA VIGESIMAL"]
+                        filas_vacias = df2[df2[columnas_oblig].isnull().any(axis=1)]
+                        
+                        if not filas_vacias.empty:
+                            st.error("❌ Se detectaron campos vacíos")
+                            st.dataframe(filas_vacias, use_container_width=True)
+                            st.stop()
+                        
+                        # Validar cursos
+                        cursos_invalidos = sorted(df2.loc[~df2["CURSO"].isin(st.session_state.cursos_equivalentes), "CURSO"].unique())
+                        
+                        if len(cursos_invalidos) > 0:
+                            st.warning(f"⚠️ Se detectaron {len(cursos_invalidos)} cursos no reconocidos")
+                            
+                            with st.form("equivalencias_form"):
+                                st.markdown("### 🔄 Homologación de Cursos")
+                                st.info("Selecciona el curso oficial correspondiente para cada curso no reconocido:")
                                 
-                        # Mostrar tabla scrolleable
-                        st.dataframe(
-                            df_errores_fatales_4p5s,
-                            use_container_width=True,
-                            height=220  # ajusta la altura visible (unas 5-6 filas aprox)
-                        )
+                                equivalencias = {}
+                                for curso in cursos_invalidos:
+                                    equivalencias[curso] = st.selectbox(
+                                        f"📌 **{curso}**",
+                                        options=["-- Seleccionar --"] + st.session_state.cursos_equivalentes,
+                                        key=f"eq_{curso}"
+                                    )
                                 
-                        st.caption(f"🔎 Total de errores: {len(errores_validacion_4p5s)}")
-                        st.info("Por favor, corrige estos errores en el archivo y vuelve a cargarlo")
-                        st.stop()
-
+                                submitted = st.form_submit_button("✔️ Aplicar Equivalencias", type="primary")
+                                
+                                if submitted:
+                                    if any(v == "-- Seleccionar --" for v in equivalencias.values()):
+                                        st.error("❌ Debes seleccionar un curso para todos los campos")
+                                    else:
+                                        # Aplicar equivalencias
+                                        for curso_err, curso_ok in equivalencias.items():
+                                            df2.loc[df2["CURSO"] == curso_err, "CURSO"] = curso_ok
+                                        
+                                        # Guardar en session_state
+                                        df2["IDENTIFICADOR"] = crear_identificador(df2, "PATERNO", "MATERNO", "NOMBRES")
+                                        df2["NOTAS VIGESIMALES 75%"] = ""
+                                        df2["PROMEDIO"] = ""
+                                        
+                                        # Reordenar columnas
+                                        cols_orden = [c for c in df2.columns if c != "IDENTIFICADOR"]
+                                        cols_orden.append("IDENTIFICADOR")
+                                        df2 = df2[cols_orden]
+                                        
+                                        # Guardar en session_state
+                                        st.session_state.archivo2_4p5s_df = df2
+                                        st.session_state.archivo2_4p5s_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_4p5s_df) + 1))
+                                        
+                                        st.success("✅ Cursos homologados correctamente")
+                                        st.rerun()
+                    
+                        # Si no hay cursos inválidos
+                        if len(cursos_invalidos) == 0 or st.session_state.archivo2_4p5s_df is not None:
+                            df2["IDENTIFICADOR"] = crear_identificador(df2, "PATERNO", "MATERNO", "NOMBRES")
+                            df2["NOTAS VIGESIMALES 75%"] = ""
+                            df2["PROMEDIO"] = ""
+                            
+                            # Reordenar columnas
+                            cols_orden = [c for c in df2.columns if c != "IDENTIFICADOR"]
+                            cols_orden.append("IDENTIFICADOR")
+                            df2 = df2[cols_orden]
+                            
+                            st.session_state.archivo2_4p5s_df = df2
+                            st.session_state.archivo2_4p5s_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_4p5s_df) + 1))
+                            
+                            df_4p5s_procesado = df2
                     else:
-                        st.success("✅ Validaciones de grados y secciones pasadas (4P-5S)")
-
-                    # Completar valores vacíos en NOTA VIGESIMAL con "NP"
-                    if "NOTA VIGESIMAL" in df2.columns:
-                        df2["NOTA VIGESIMAL"] = df2["NOTA VIGESIMAL"].fillna("NP").replace("", "NP")
-                    
-                    # Validar campos vacíos
-                    columnas_oblig = ["PATERNO", "MATERNO", "NOMBRES", "CURSO", "GRADO", "SECCIÓN", "NOTA VIGESIMAL"]
-                    filas_vacias = df2[df2[columnas_oblig].isnull().any(axis=1)]
-                    
-                    if not filas_vacias.empty:
-                        st.error("❌ Se detectaron campos vacíos")
-                        st.dataframe(filas_vacias, use_container_width=True)
-                        st.stop()
-                    
-                    # Validar cursos
-                    cursos_invalidos = sorted(df2.loc[~df2["CURSO"].isin(st.session_state.cursos_equivalentes), "CURSO"].unique())
-                    
-                    if len(cursos_invalidos) > 0:
-                        st.warning(f"⚠️ Se detectaron {len(cursos_invalidos)} cursos no reconocidos")
-                        
-                        with st.form("equivalencias_form"):
-                            st.markdown("### 🔄 Homologación de Cursos")
-                            st.info("Selecciona el curso oficial correspondiente para cada curso no reconocido:")
-                            
-                            equivalencias = {}
-                            for curso in cursos_invalidos:
-                                equivalencias[curso] = st.selectbox(
-                                    f"📌 **{curso}**",
-                                    options=["-- Seleccionar --"] + st.session_state.cursos_equivalentes,
-                                    key=f"eq_{curso}"
-                                )
-                            
-                            submitted = st.form_submit_button("✔️ Aplicar Equivalencias", type="primary")
-                            
-                            if submitted:
-                                if any(v == "-- Seleccionar --" for v in equivalencias.values()):
-                                    st.error("❌ Debes seleccionar un curso para todos los campos")
-                                else:
-                                    # Aplicar equivalencias
-                                    for curso_err, curso_ok in equivalencias.items():
-                                        df2.loc[df2["CURSO"] == curso_err, "CURSO"] = curso_ok
-                                    
-                                    # Guardar en session_state
-                                    df2["IDENTIFICADOR"] = crear_identificador(df2, "PATERNO", "MATERNO", "NOMBRES")
-                                    df2["NOTAS VIGESIMALES 75%"] = ""
-                                    df2["PROMEDIO"] = ""
-                                    
-                                    # Reordenar columnas
-                                    cols_orden = [c for c in df2.columns if c != "IDENTIFICADOR"]
-                                    cols_orden.append("IDENTIFICADOR")
-                                    df2 = df2[cols_orden]
-                                    
-                                    # Guardar en session_state
-                                    st.session_state.archivo2_4p5s_df = df2
-                                    st.session_state.archivo2_4p5s_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_4p5s_df) + 1))
-                                    
-                                    st.success("✅ Cursos homologados correctamente")
-                                    st.rerun()
-                    
-                    # Si no hay cursos inválidos
-                    if len(cursos_invalidos) == 0 or st.session_state.archivo2_4p5s_df is not None:
-                        df2["IDENTIFICADOR"] = crear_identificador(df2, "PATERNO", "MATERNO", "NOMBRES")
-                        df2["NOTAS VIGESIMALES 75%"] = ""
-                        df2["PROMEDIO"] = ""
-                        
-                        # Reordenar columnas
-                        cols_orden = [c for c in df2.columns if c != "IDENTIFICADOR"]
-                        cols_orden.append("IDENTIFICADOR")
-                        df2 = df2[cols_orden]
-                        
-                        st.session_state.archivo2_4p5s_df = df2
-                        st.session_state.archivo2_4p5s_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_4p5s_df) + 1))
-                        
-                        df_4p5s_procesado = df2
-                        
-                    else:
+                        st.error("❌ Error de cabecera en la hoja 4P-5S")
                         st.warning("⚠️ No se pudo detectar cabecera automáticamente en 4P-5S")
-                        st.info("Por favor, verifica que la hoja tenga las columnas correctas")
-                
+                        st.info("Por favor, verifica que la hoja tenga las columnas correctas:")
+                        st.code("Nro., Paterno, Materno, Nombres, Curso, Grado, Sección, Nota Vigesimal")
+                        st.stop()
+
                 # ====================================
                 # SECCIÓN DE DESCARGA
                 # ====================================
@@ -1478,9 +1466,6 @@ elif st.session_state.paso_actual == 2:
                             # Para 1P-3P (no hay NOTAS VIGESIMALES 75% ni PROMEDIO)
                             df_sin_notas_1p3p = df_1p3p_procesado.drop(columns=["IDENTIFICADOR", "NRO."], errors="ignore")
                             df_sin_notas_1p3p["NOTA VIGESIMAL"] = df_sin_notas_1p3p["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
-                            #buffer_1p3p = BytesIO()
-                            #df_sin_notas_1p3p.to_excel(buffer_1p3p, index=False, engine="openpyxl")
-                            #buffer_1p3p.seek(0)
                             buffer_1p3p = guardar_con_formato_original(
                                 df_procesado=df_sin_notas_1p3p,
                                 archivo_original_bytes=st.session_state.archivo2_bytes,
@@ -1502,9 +1487,6 @@ elif st.session_state.paso_actual == 2:
                             with cols_descarga[col_idx]:
                                 df_sin_notas_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR", "NRO.", "NOTAS VIGESIMALES 75%", "PROMEDIO"], errors="ignore")
                                 df_sin_notas_4p5s["NOTA VIGESIMAL"] = df_sin_notas_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
-                                #buffer_4p5s = BytesIO()
-                                #df_sin_notas_4p5s.to_excel(buffer_4p5s, index=False, engine="openpyxl")
-                                #buffer_4p5s.seek(0)
                                 buffer_4p5s = guardar_con_formato_original(
                                     df_procesado=df_sin_notas_4p5s,
                                     archivo_original_bytes=st.session_state.archivo2_bytes,
@@ -1531,10 +1513,6 @@ elif st.session_state.paso_actual == 2:
                                 # Eliminar columna IDENTIFICADOR y preparar para descarga
                                 df_eval_4p5s = df_evaluador.drop(columns=["IDENTIFICADOR"], errors="ignore") #, "NRO."
                                 df_eval_4p5s["NOTA VIGESIMAL"] = df_eval_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
-                                
-                                #buffer_eval_4p5s = BytesIO()
-                                #df_eval_4p5s.to_excel(buffer_eval_4p5s, index=False, engine="openpyxl")
-                                #buffer_eval_4p5s.seek(0)
                                 buffer_eval_4p5s = guardar_con_formato_original(
                                     df_procesado=df_eval_4p5s,
                                     archivo_original_bytes=st.session_state.archivo2_bytes,
