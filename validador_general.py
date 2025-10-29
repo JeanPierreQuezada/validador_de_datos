@@ -307,19 +307,43 @@ def convertir_numericas_a_entero(df, columnas=None):
     
     return df
 
-def validar_y_mapear_grados(df, col_grado="GRADO"):
+def validar_y_mapear_grados(df, col_grado="GRADO", tipo_validacion="todos"):
     """
     Valida y mapea los grados. Convierte números 1-11 a formato estándar (1P-6P, 1S-5S).
     Retorna DataFrame procesado y lista de errores.
+    
+    Args:
+        df: DataFrame a validar
+        col_grado: Nombre de la columna de grado
+        tipo_validacion: Tipo de validación a aplicar:
+            - "todos": Valida todos los grados (1P-6P, 1S-5S) - Para Archivo 1
+            - "1p3p": Solo valida 1P, 2P, 3P - Para hoja 1P-3P del Archivo 2
+            - "4p5s": Solo valida 4P-6P, 1S-5S - Para hoja 4P-5S del Archivo 2
     """
     errores = []
     df[col_grado] = df[col_grado].astype(str).str.strip().str.upper()
     
+    # Definir mapeos según el tipo de validación
+    if tipo_validacion == "1p3p":
+        mapeo_grados = {
+            "1": "1P", "2": "2P", "3": "3P"
+        }
+        grados_validos = ["1P", "2P", "3P"]
+    elif tipo_validacion == "4p5s":
+        mapeo_grados = {
+            "4": "4P", "5": "5P", "6": "6P",
+            "7": "1S", "8": "2S", "9": "3S", "10": "4S", "11": "5S"
+        }
+        grados_validos = ["4P", "5P", "6P", "1S", "2S", "3S", "4S", "5S"]
+    else:  # "todos"
+        mapeo_grados = MAPEO_GRADOS
+        grados_validos = GRADOS_VALIDOS
+    
     # Mapear números a grados
-    df[col_grado] = df[col_grado].replace(MAPEO_GRADOS)
+    df[col_grado] = df[col_grado].replace(mapeo_grados)
     
     # Validar grados
-    grados_invalidos = df.loc[~df[col_grado].isin(GRADOS_VALIDOS)]
+    grados_invalidos = df.loc[~df[col_grado].isin(grados_validos)]
 
     if len(grados_invalidos) > 0:
         for idx, row in grados_invalidos.iterrows():
@@ -1187,7 +1211,7 @@ elif st.session_state.paso_actual == 2:
                             df_1p3p["NOTA VIGESIMAL"] = df_1p3p["NOTA VIGESIMAL"].fillna("NP").replace("", "NP")
 
                         # Validar y mapear grados
-                        df_1p3p, errores_grados = validar_y_mapear_grados(df_1p3p, "GRADO")
+                        df_1p3p, errores_grados = validar_y_mapear_grados(df_1p3p, "GRADO", tipo_validacion="1p3p")
                         errores_validacion_1p3p.extend(errores_grados)
                         
                         # Validar secciones
@@ -1322,7 +1346,7 @@ elif st.session_state.paso_actual == 2:
                     errores_validacion_4p5s = []
 
                     # Validar y mapear grados
-                    df2, errores_grados = validar_y_mapear_grados(df2, "GRADO")
+                    df2, errores_grados = validar_y_mapear_grados(df2, "GRADO", tipo_validacion="4p5s")
                     errores_validacion_4p5s.extend(errores_grados)
 
                     # Validar secciones
