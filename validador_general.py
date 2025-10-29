@@ -5,7 +5,9 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-import unicodedata
+from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import PatternFill, Font, Alignment
 
 # ================================================
 # CONFIGURACIÓN INICIAL
@@ -31,6 +33,16 @@ if "archivo2_1p3p_df" not in st.session_state:
     st.session_state.archivo2_1p3p_df = None
 if "archivo2_4p5s_df" not in st.session_state:
     st.session_state.archivo2_4p5s_df = None
+if "archivo1_bytes" not in st.session_state:
+    st.session_state.archivo1_bytes = None
+if "archivo2_bytes" not in st.session_state:
+    st.session_state.archivo2_bytes = None
+if "archivo1_fila_cabecera" not in st.session_state:
+    st.session_state.archivo1_fila_cabecera = None
+if "archivo2_1p3p_fila_cabecera" not in st.session_state:
+    st.session_state.archivo2_1p3p_fila_cabecera = None
+if "archivo2_4p5s_fila_cabecera" not in st.session_state:
+    st.session_state.archivo2_4p5s_fila_cabecera = None
 if "cursos_equivalentes" not in st.session_state:
     st.session_state.cursos_equivalentes = [
         "ADOBE ILLUSTRATOR", "ADOBE INDESIGN", "ADOBE PHOTOSHOP PROFICIENT",
@@ -593,6 +605,96 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
     
     return df_evaluador
 
+def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_hoja, fila_cabecera, agregar_columnas_nuevas=False):
+    """
+    Preserva el formato del archivo original y actualiza solo los datos procesados
+    
+    Args:
+        df_procesado: DataFrame con los datos procesados
+        archivo_original_bytes: Bytes del archivo Excel original
+        nombre_hoja: Nombre de la hoja a actualizar (None para usar la primera hoja)
+        fila_cabecera: Índice de la fila donde está la cabecera (base 0 de pandas)
+        agregar_columnas_nuevas: Si True, agrega columnas nuevas del df_procesado a la cabecera
+    
+    Returns:
+        BytesIO con el archivo actualizado preservando formato
+    """
+    wb = load_workbook(BytesIO(archivo_original_bytes))
+    
+    # Si no se especifica nombre de hoja, usar la primera
+    if nombre_hoja is None or nombre_hoja not in wb.sheetnames:
+        ws = wb.active
+    else:
+        ws = wb[nombre_hoja]
+    
+    # Convertir fila_cabecera de pandas (base 0) a openpyxl (base 1)
+    fila_cabecera_excel = fila_cabecera + 1
+    fila_inicio_datos = fila_cabecera_excel + 1
+    
+    # Si se debe agregar columnas nuevas, actualizar la cabecera
+    if agregar_columnas_nuevas:
+        
+        # Leer cabecera actual del Excel (solo celdas con valores)
+        cabecera_actual = []
+        ultima_col_con_datos = 0
+        for idx, cell in enumerate(ws[fila_cabecera_excel], start=1):
+            if cell.value is not None:
+                cabecera_actual.append(str(cell.value).upper().strip())
+                ultima_col_con_datos = idx
+        
+        cabecera_df = [str(col).upper().strip() for col in df_procesado.columns]
+        
+        # Encontrar columnas nuevas que no están en la cabecera actual
+        columnas_nuevas = [col for col in cabecera_df if col not in cabecera_actual]
+        
+        # Agregar las columnas nuevas inmediatamente después de la última columna con datos
+        if columnas_nuevas:
+            # Obtener el estilo de la última celda de la cabecera con datos
+            celda_referencia = ws.cell(row=fila_cabecera_excel, column=ultima_col_con_datos)
+            
+            for idx, nueva_col in enumerate(columnas_nuevas, start=1):
+                nueva_celda = ws.cell(row=fila_cabecera_excel, column=ultima_col_con_datos + idx)
+                nueva_celda.value = nueva_col
+                
+                # Copiar el estilo de la celda de referencia
+                if celda_referencia.fill:
+                    nueva_celda.fill = PatternFill(
+                        start_color=celda_referencia.fill.start_color,
+                        end_color=celda_referencia.fill.end_color,
+                        fill_type=celda_referencia.fill.fill_type
+                    )
+                if celda_referencia.font:
+                    nueva_celda.font = Font(
+                        name=celda_referencia.font.name,
+                        size=celda_referencia.font.size,
+                        bold=celda_referencia.font.bold,
+                        italic=celda_referencia.font.italic,
+                        color=celda_referencia.font.color
+                    )
+                if celda_referencia.alignment:
+                    nueva_celda.alignment = Alignment(
+                        horizontal=celda_referencia.alignment.horizontal,
+                        vertical=celda_referencia.alignment.vertical
+                    )
+    
+    # Eliminar filas de datos antiguos (preservando cabecera y filas previas)
+    if ws.max_row >= fila_inicio_datos:
+        ws.delete_rows(fila_inicio_datos, ws.max_row - fila_inicio_datos + 1)
+    
+    # Insertar nuevos datos
+    for r_idx, row in enumerate(dataframe_to_rows(df_procesado, index=False, header=False), start=fila_inicio_datos):
+        for c_idx, value in enumerate(row, start=1):
+            # Manejar valores NaN
+            if pd.isna(value):
+                value = None
+            ws.cell(row=r_idx, column=c_idx, value=value)
+    
+    # Guardar en BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
 # ================================================
 # INTERFAZ PRINCIPAL
 # ================================================
@@ -670,12 +772,16 @@ elif st.session_state.paso_actual == 1:
         )
         
         if archivo is not None:
+            # GUARDAR BYTES ORIGINALES
+            st.session_state.archivo1_bytes = archivo.getvalue()
             with st.spinner("🔍 Analizando archivo..."):
                 try:
                     df_original = pd.read_excel(archivo, header=None)
                     fila_detectada = detectar_cabecera_automatica(df_original, COLUMNAS_ARCHIVO1)
                     
                     if fila_detectada is not None:
+                        # GUARDAR ÍNDICE DE CABECERA
+                        st.session_state.archivo1_fila_cabecera = fila_detectada
                         st.success(f"✅ Cabecera detectada automáticamente en la fila {fila_detectada + 1}")
                         
                         df = pd.read_excel(archivo, header=fila_detectada)
@@ -788,9 +894,15 @@ elif st.session_state.paso_actual == 1:
                         col1, col2 = st.columns(2)
                         with col1:
                             df_descarga = df.drop(columns=["IDENTIFICADOR", "Nº"], errors="ignore")
-                            buffer = BytesIO()
-                            df_descarga.to_excel(buffer, index=False, engine="openpyxl")
-                            buffer.seek(0)
+                            #buffer = BytesIO()
+                            #df_descarga.to_excel(buffer, index=False, engine="openpyxl")
+                            #buffer.seek(0)
+                            buffer = guardar_con_formato_original(
+                                df_procesado=df_descarga,
+                                archivo_original_bytes=st.session_state.archivo1_bytes,
+                                nombre_hoja=None,  # Usar primera hoja
+                                fila_cabecera=st.session_state.archivo1_fila_cabecera
+                            )
                             st.download_button(
                                 label="💾 Descargar Archivo Homologado",
                                 data=buffer,
@@ -854,7 +966,7 @@ elif st.session_state.paso_actual == 1:
                                 
                                 # Validar sexo
                                 errores_sexo = validar_sexo(df, "SEXO (M/F)")
-                                errores_fatales.extend(errores_sexo)
+                                alertas.extend(errores_sexo)
                                 
                                 # Validar secciones
                                 errores_secciones = validar_secciones(df, "SECCIÓN")
@@ -924,9 +1036,15 @@ elif st.session_state.paso_actual == 1:
                                 col1, col2 = st.columns(2)
                                 with col1:
                                     df_descarga = df.drop(columns=["IDENTIFICADOR", "Nº"], errors="ignore")
-                                    buffer = BytesIO()
-                                    df_descarga.to_excel(buffer, index=False, engine="openpyxl")
-                                    buffer.seek(0)
+                                    #buffer = BytesIO()
+                                    #df_descarga.to_excel(buffer, index=False, engine="openpyxl")
+                                    #buffer.seek(0)
+                                    buffer = guardar_con_formato_original(
+                                        df_procesado=df_descarga,
+                                        archivo_original_bytes=st.session_state.archivo1_bytes,
+                                        nombre_hoja=None,  # Usar primera hoja
+                                        fila_cabecera=st.session_state.archivo1_fila_cabecera
+                                    )
                                     st.download_button(
                                         label="💾 Descargar Archivo Homologado",
                                         data=buffer,
@@ -986,6 +1104,8 @@ elif st.session_state.paso_actual == 2:
     archivo2 = st.file_uploader("Selecciona el archivo Excel de notas", type=["xls", "xlsx"])
     
     if archivo2 is not None:
+        # GUARDAR BYTES ORIGINALES
+        st.session_state.archivo2_bytes = archivo2.getvalue()
         with st.spinner("🔍 Analizando archivo y hojas disponibles..."):
             try:
                 # Leer el archivo para detectar hojas
@@ -1024,6 +1144,8 @@ elif st.session_state.paso_actual == 2:
                     fila_detectada_1p3p = detectar_cabecera_automatica(df_1p3p_original, COLUMNAS_ARCHIVO2)
                     
                     if fila_detectada_1p3p is not None:
+                        # GUARDAR ÍNDICE DE CABECERA
+                        st.session_state.archivo2_1p3p_fila_cabecera = fila_detectada_1p3p
                         st.success(f"✅ Cabecera detectada en la fila {fila_detectada_1p3p + 1}")
                         
                         df_1p3p = pd.read_excel(archivo2, sheet_name="1P-3P", header=fila_detectada_1p3p)
@@ -1128,6 +1250,7 @@ elif st.session_state.paso_actual == 2:
                                         
                                         # Guardar en session_state
                                         st.session_state.archivo2_1p3p_df = df_1p3p
+                                        st.session_state.archivo2_1p3p_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_1p3p_df) + 1))
                                         
                                         st.success("✅ Cursos homologados correctamente en 1P-3P")
                                         st.rerun()
@@ -1147,6 +1270,7 @@ elif st.session_state.paso_actual == 2:
                                 df_1p3p = df_1p3p[cols_orden]
                                 
                                 st.session_state.archivo2_1p3p_df = df_1p3p
+                                st.session_state.archivo2_1p3p_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_1p3p_df) + 1))
                             
                             df_1p3p_procesado = df_1p3p
                             
@@ -1168,6 +1292,8 @@ elif st.session_state.paso_actual == 2:
                     fila_detectada2 = detectar_cabecera_automatica(df_original2, COLUMNAS_ARCHIVO2)
                     
                     if fila_detectada2 is not None:
+                        # GUARDAR ÍNDICE DE CABECERA
+                        st.session_state.archivo2_4p5s_fila_cabecera = fila_detectada2
                         st.success(f"✅ Cabecera detectada en la fila {fila_detectada2 + 1}")
                         
                         df2 = pd.read_excel(archivo2, sheet_name="4P-5S", header=fila_detectada2)
@@ -1275,6 +1401,7 @@ elif st.session_state.paso_actual == 2:
                                     
                                     # Guardar en session_state
                                     st.session_state.archivo2_4p5s_df = df2
+                                    st.session_state.archivo2_4p5s_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_4p5s_df) + 1))
                                     
                                     st.success("✅ Cursos homologados correctamente")
                                     st.rerun()
@@ -1291,6 +1418,7 @@ elif st.session_state.paso_actual == 2:
                         df2 = df2[cols_orden]
                         
                         st.session_state.archivo2_4p5s_df = df2
+                        st.session_state.archivo2_4p5s_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_4p5s_df) + 1))
                         
                         df_4p5s_procesado = df2
                         
@@ -1326,9 +1454,15 @@ elif st.session_state.paso_actual == 2:
                             # Para 1P-3P (no hay NOTAS VIGESIMALES 75% ni PROMEDIO)
                             df_sin_notas_1p3p = df_1p3p_procesado.drop(columns=["IDENTIFICADOR", "NRO."], errors="ignore")
                             df_sin_notas_1p3p["NOTA VIGESIMAL"] = df_sin_notas_1p3p["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
-                            buffer_1p3p = BytesIO()
-                            df_sin_notas_1p3p.to_excel(buffer_1p3p, index=False, engine="openpyxl")
-                            buffer_1p3p.seek(0)
+                            #buffer_1p3p = BytesIO()
+                            #df_sin_notas_1p3p.to_excel(buffer_1p3p, index=False, engine="openpyxl")
+                            #buffer_1p3p.seek(0)
+                            buffer_1p3p = guardar_con_formato_original(
+                                df_procesado=df_sin_notas_1p3p,
+                                archivo_original_bytes=st.session_state.archivo2_bytes,
+                                nombre_hoja="1P-3P",
+                                fila_cabecera=st.session_state.archivo2_1p3p_fila_cabecera
+                            )
                             st.download_button(
                                 label="📥 1P-3P Homologado",
                                 data=buffer_1p3p,
@@ -1344,9 +1478,15 @@ elif st.session_state.paso_actual == 2:
                             with cols_descarga[col_idx]:
                                 df_sin_notas_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR", "NRO.", "NOTAS VIGESIMALES 75%", "PROMEDIO"], errors="ignore")
                                 df_sin_notas_4p5s["NOTA VIGESIMAL"] = df_sin_notas_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
-                                buffer_4p5s = BytesIO()
-                                df_sin_notas_4p5s.to_excel(buffer_4p5s, index=False, engine="openpyxl")
-                                buffer_4p5s.seek(0)
+                                #buffer_4p5s = BytesIO()
+                                #df_sin_notas_4p5s.to_excel(buffer_4p5s, index=False, engine="openpyxl")
+                                #buffer_4p5s.seek(0)
+                                buffer_4p5s = guardar_con_formato_original(
+                                    df_procesado=df_sin_notas_4p5s,
+                                    archivo_original_bytes=st.session_state.archivo2_bytes,
+                                    nombre_hoja="4P-5S",
+                                    fila_cabecera=st.session_state.archivo2_4p5s_fila_cabecera
+                                )
                                 st.download_button(
                                     label="📥 4P-5S Homologado",
                                     data=buffer_4p5s,
@@ -1365,12 +1505,19 @@ elif st.session_state.paso_actual == 2:
                                 )
                                 
                                 # Eliminar columna IDENTIFICADOR y preparar para descarga
-                                df_eval_4p5s = df_evaluador.drop(columns=["IDENTIFICADOR", "NRO."], errors="ignore")
+                                df_eval_4p5s = df_evaluador.drop(columns=["IDENTIFICADOR"], errors="ignore") #, "NRO."
                                 df_eval_4p5s["NOTA VIGESIMAL"] = df_eval_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                                 
-                                buffer_eval_4p5s = BytesIO()
-                                df_eval_4p5s.to_excel(buffer_eval_4p5s, index=False, engine="openpyxl")
-                                buffer_eval_4p5s.seek(0)
+                                #buffer_eval_4p5s = BytesIO()
+                                #df_eval_4p5s.to_excel(buffer_eval_4p5s, index=False, engine="openpyxl")
+                                #buffer_eval_4p5s.seek(0)
+                                buffer_eval_4p5s = guardar_con_formato_original(
+                                    df_procesado=df_eval_4p5s,
+                                    archivo_original_bytes=st.session_state.archivo2_bytes,
+                                    nombre_hoja="4P-5S",
+                                    fila_cabecera=st.session_state.archivo2_4p5s_fila_cabecera,
+                                    agregar_columnas_nuevas=True
+                                )
                                 
                                 st.download_button(
                                     label="📥 4P-5S Evaluador",
@@ -1437,6 +1584,11 @@ elif st.session_state.paso_actual == 3:
             st.session_state.nombre_colegio = ""
             st.session_state.archivo1_df = None
             st.session_state.archivo2_df = None
+            st.session_state.archivo1_bytes = None
+            st.session_state.archivo2_bytes = None
+            st.session_state.archivo1_fila_cabecera = None
+            st.session_state.archivo2_1p3p_fila_cabecera = None
+            st.session_state.archivo2_4p5s_fila_cabecera = None
             st.rerun()
         
         if st.button("🔙 Volver al Paso 3", use_container_width=True):
