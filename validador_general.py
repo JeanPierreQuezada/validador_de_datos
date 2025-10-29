@@ -578,7 +578,25 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
     # Completar datos faltantes: si no hay datos de archivo2, usar los de archivo1
     columnas_comunes = ["PATERNO", "MATERNO", "NOMBRES", "GRADO", "SECCIÓN"]
     
-    for col in columnas_comunes:
+    # Completar primero la columna GRADO antes del filtro
+    if "GRADO_archivo1" in df_evaluador.columns:
+        # Si el valor de archivo2 está vacío, usar el de archivo1
+        df_evaluador["GRADO"] = df_evaluador["GRADO"].fillna(df_evaluador["GRADO_archivo1"])
+        # Si aún está vacío (era NaN), usar el de archivo1
+        mask_vacio = (df_evaluador["GRADO"] == "") | (df_evaluador["GRADO"].isna())
+        df_evaluador.loc[mask_vacio, "GRADO"] = df_evaluador.loc[mask_vacio, "GRADO_archivo1"]
+    
+    # FILTRO: Mantener solo los grados de 4P a 5S
+    grados_permitidos = ["4P", "5P", "6P", "1S", "2S", "3S", "4S", "5S"]
+    df_evaluador = df_evaluador[df_evaluador["GRADO"].isin(grados_permitidos)].copy()
+    
+    # Eliminar la columna temporal de GRADO_archivo1 si existe
+    df_evaluador = df_evaluador.drop(columns=["GRADO_archivo1"], errors='ignore')
+    
+    # Continuar completando el resto de columnas comunes (excepto GRADO que ya se procesó)
+    columnas_comunes_restantes = ["PATERNO", "MATERNO", "NOMBRES", "SECCIÓN"]
+
+    for col in columnas_comunes_restantes:
         col_archivo1 = f"{col}_archivo1"
         if col_archivo1 in df_evaluador.columns:
             # Si el valor de archivo2 está vacío, usar el de archivo1
