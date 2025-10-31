@@ -526,17 +526,18 @@ def mostrar_stepper(paso_actual):
     
     st.divider()
 
-def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
+def crear_archivo_evaluador(df_archivo1, df_archivo2_procesado):
     """
-    Crea el archivo evaluador haciendo un full join entre archivo1 y archivo2_4p5s
-    usando IDENTIFICADOR como clave única.
+    Crea el archivo evaluador haciendo un full join entre archivo1 y archivo2
+    usando IDENTIFICADOR como clave única. Retorna dos DataFrames separados
+    por grado: uno para 1P-3P y otro para 4P-5S.
     
     Args:
         df_archivo1: DataFrame del archivo 1 con todos los alumnos
-        df_archivo2_4p5s: DataFrame del archivo 2 (4P-5S) con notas
+        df_archivo2_procesado: DataFrame del archivo 2 con notas (puede ser 1P-3P o 4P-5S)
     
     Returns:
-        DataFrame con estructura de archivo2_4p5s pero con todos los alumnos
+        tuple: (df_1p3p, df_4p5s) - DataFrames separados por grado
     """
     # Mapear las columnas de archivo1 a las de archivo2
     df1_base = df_archivo1[[
@@ -549,7 +550,7 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
     ]].copy()
     
     # Preparar archivo2 para el merge
-    df2_merge = df_archivo2_4p5s.copy()
+    df2_merge = df_archivo2_procesado.copy()
     
     # Marcar el origen de cada registro ANTES del merge
     df2_merge['_origen'] = 'archivo2'
@@ -572,7 +573,7 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
         elif row['_merge'] == 'right_only':  # Solo en archivo1
             return 'SN'
         else:  # 'left_only' - Solo en archivo2
-            return 'RET' #NA
+            return 'RET'
     
     df_evaluador['OBSERVACIONES'] = df_evaluador.apply(asignar_observacion, axis=1)
     
@@ -584,15 +585,9 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
     
     # Completar primero la columna GRADO antes del filtro
     if "GRADO_archivo1" in df_evaluador.columns:
-        # Si el valor de archivo2 está vacío, usar el de archivo1
         df_evaluador["GRADO"] = df_evaluador["GRADO"].fillna(df_evaluador["GRADO_archivo1"])
-        # Si aún está vacío (era NaN), usar el de archivo1
         mask_vacio = (df_evaluador["GRADO"] == "") | (df_evaluador["GRADO"].isna())
         df_evaluador.loc[mask_vacio, "GRADO"] = df_evaluador.loc[mask_vacio, "GRADO_archivo1"]
-    
-    # FILTRO: Mantener solo los grados de 4P a 5S
-    grados_permitidos = ["4P", "5P", "6P", "1S", "2S", "3S", "4S", "5S"]
-    df_evaluador = df_evaluador[df_evaluador["GRADO"].isin(grados_permitidos)].copy()
     
     # Eliminar la columna temporal de GRADO_archivo1 si existe
     df_evaluador = df_evaluador.drop(columns=["GRADO_archivo1"], errors='ignore')
@@ -603,42 +598,60 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
     for col in columnas_comunes_restantes:
         col_archivo1 = f"{col}_archivo1"
         if col_archivo1 in df_evaluador.columns:
-            # Si el valor de archivo2 está vacío, usar el de archivo1
             df_evaluador[col] = df_evaluador[col].fillna(df_evaluador[col_archivo1])
-            # Si aún está vacío (era NaN), usar el de archivo1
             mask_vacio = (df_evaluador[col] == "") | (df_evaluador[col].isna())
             df_evaluador.loc[mask_vacio, col] = df_evaluador.loc[mask_vacio, col_archivo1]
-            # Eliminar columna temporal
             df_evaluador = df_evaluador.drop(columns=[col_archivo1])
     
-    # Asegurar que CURSO y NOTA VIGESIMAL existan (pueden estar vacíos para alumnos solo en archivo1)
+    # Asegurar que CURSO y NOTA VIGESIMAL existan
     if "CURSO" not in df_evaluador.columns:
         df_evaluador["CURSO"] = ""
     if "NOTA VIGESIMAL" not in df_evaluador.columns:
         df_evaluador["NOTA VIGESIMAL"] = ""
     
-    # Definir el orden correcto de las columnas (según archivo2_4p5s)
-    columnas_finales = [
+    # Rellenar NaN restantes con cadenas vacías
+    df_evaluador = df_evaluador.fillna("")
+    
+    # SEPARAR EN DOS DATAFRAMES SEGÚN GRADO
+    grados_1p3p = ["1P", "2P", "3P"]
+    grados_4p5s = ["4P", "5P", "6P", "1S", "2S", "3S", "4S", "5S"]
+    
+    df_1p3p = df_evaluador[df_evaluador["GRADO"].isin(grados_1p3p)].copy()
+    df_4p5s = df_evaluador[df_evaluador["GRADO"].isin(grados_4p5s)].copy()
+    
+    # Definir columnas finales para 1P-3P (sin NOTAS VIGESIMALES 75% ni PROMEDIO)
+    columnas_1p3p = [
+        "NRO.", "PATERNO", "MATERNO", "NOMBRES", "CURSO", 
+        "GRADO", "SECCIÓN", "NOTA VIGESIMAL", "IDENTIFICADOR", "OBSERVACIONES"
+    ]
+    
+    # Definir columnas finales para 4P-5S (con NOTAS VIGESIMALES 75% y PROMEDIO)
+    columnas_4p5s = [
         "NRO.", "PATERNO", "MATERNO", "NOMBRES", "CURSO", 
         "GRADO", "SECCIÓN", "NOTA VIGESIMAL", 
         "NOTAS VIGESIMALES 75%", "PROMEDIO", "IDENTIFICADOR", "OBSERVACIONES"
     ]
     
-    # Asegurar que todas las columnas existan
-    for col in columnas_finales:
-        if col not in df_evaluador.columns:
-            df_evaluador[col] = ""
+    # Asegurar columnas para 1P-3P
+    for col in columnas_1p3p:
+        if col not in df_1p3p.columns:
+            df_1p3p[col] = ""
+    df_1p3p = df_1p3p[columnas_1p3p]
     
-    # Reordenar y seleccionar solo las columnas finales
-    df_evaluador = df_evaluador[columnas_finales]
+    # Asegurar columnas para 4P-5S
+    for col in columnas_4p5s:
+        if col not in df_4p5s.columns:
+            df_4p5s[col] = ""
+    df_4p5s = df_4p5s[columnas_4p5s]
     
-    # Rellenar NaN restantes con cadenas vacías
-    df_evaluador = df_evaluador.fillna("")
+    # Regenerar NRO. secuencial para cada DataFrame
+    if len(df_1p3p) > 0:
+        df_1p3p["NRO."] = range(1, len(df_1p3p) + 1)
     
-    # Regenerar NRO. secuencial
-    df_evaluador["NRO."] = range(1, len(df_evaluador) + 1)
+    if len(df_4p5s) > 0:
+        df_4p5s["NRO."] = range(1, len(df_4p5s) + 1)
     
-    return df_evaluador
+    return df_1p3p, df_4p5s
 
 def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_hoja, fila_cabecera, agregar_columnas_nuevas=False):
     """
@@ -723,6 +736,104 @@ def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_ho
             if pd.isna(value):
                 value = None
             ws.cell(row=r_idx, column=c_idx, value=value)
+    
+    # Guardar en BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+def guardar_evaluador_con_multiples_hojas(archivo_original_bytes, dict_hojas_procesadas):
+    """
+    Guarda un archivo Excel con múltiples hojas preservando el formato original.
+    
+    Args:
+        archivo_original_bytes: Bytes del archivo Excel original
+        dict_hojas_procesadas: Diccionario con formato {
+            'nombre_hoja': {
+                'df': DataFrame procesado,
+                'fila_cabecera': int (índice de cabecera en base 0)
+            }
+        }
+    
+    Returns:
+        BytesIO con el archivo actualizado preservando formato
+    """
+    wb = load_workbook(BytesIO(archivo_original_bytes))
+    
+    for nombre_hoja, datos in dict_hojas_procesadas.items():
+        df_procesado = datos['df']
+        fila_cabecera = datos['fila_cabecera']
+        
+        # Si la hoja no existe en el workbook, usar la primera disponible o crearla
+        if nombre_hoja not in wb.sheetnames:
+            # Si es la primera hoja a procesar y no existe, usar la hoja activa
+            if len([k for k in dict_hojas_procesadas.keys()]) == 1:
+                ws = wb.active
+                ws.title = nombre_hoja
+            else:
+                # Crear nueva hoja
+                ws = wb.create_sheet(title=nombre_hoja)
+                fila_cabecera = 0  # Para hojas nuevas, empezar desde fila 0
+        else:
+            ws = wb[nombre_hoja]
+        
+        # Convertir fila_cabecera de pandas (base 0) a openpyxl (base 1)
+        fila_cabecera_excel = fila_cabecera + 1
+        fila_inicio_datos = fila_cabecera_excel + 1
+        
+        # Actualizar cabecera con las columnas del DataFrame (incluyendo OBSERVACIONES)
+        cabecera_actual = []
+        ultima_col_con_datos = 0
+        for idx, cell in enumerate(ws[fila_cabecera_excel], start=1):
+            if cell.value is not None:
+                cabecera_actual.append(str(cell.value).upper().strip())
+                ultima_col_con_datos = idx
+        
+        cabecera_df = [str(col).upper().strip() for col in df_procesado.columns]
+        
+        # Encontrar columnas nuevas que no están en la cabecera actual
+        columnas_nuevas = [col for col in cabecera_df if col not in cabecera_actual]
+        
+        # Agregar las columnas nuevas
+        if columnas_nuevas:
+            celda_referencia = ws.cell(row=fila_cabecera_excel, column=max(1, ultima_col_con_datos))
+            
+            for idx, nueva_col in enumerate(columnas_nuevas, start=1):
+                nueva_celda = ws.cell(row=fila_cabecera_excel, column=ultima_col_con_datos + idx)
+                nueva_celda.value = nueva_col
+                
+                # Copiar el estilo de la celda de referencia
+                if celda_referencia.fill:
+                    nueva_celda.fill = PatternFill(
+                        start_color=celda_referencia.fill.start_color,
+                        end_color=celda_referencia.fill.end_color,
+                        fill_type=celda_referencia.fill.fill_type
+                    )
+                if celda_referencia.font:
+                    nueva_celda.font = Font(
+                        name=celda_referencia.font.name,
+                        size=celda_referencia.font.size,
+                        bold=celda_referencia.font.bold,
+                        italic=celda_referencia.font.italic,
+                        color=celda_referencia.font.color
+                    )
+                if celda_referencia.alignment:
+                    nueva_celda.alignment = Alignment(
+                        horizontal=celda_referencia.alignment.horizontal,
+                        vertical=celda_referencia.alignment.vertical
+                    )
+        
+        # Eliminar filas de datos antiguos
+        if ws.max_row >= fila_inicio_datos:
+            ws.delete_rows(fila_inicio_datos, ws.max_row - fila_inicio_datos + 1)
+        
+        # Insertar nuevos datos
+        for r_idx, row in enumerate(dataframe_to_rows(df_procesado, index=False, header=False), start=fila_inicio_datos):
+            for c_idx, value in enumerate(row, start=1):
+                if pd.isna(value):
+                    value = None
+                ws.cell(row=r_idx, column=c_idx, value=value)
     
     # Guardar en BytesIO
     output = BytesIO()
@@ -1467,25 +1578,22 @@ elif st.session_state.paso_actual == 2:
                     st.divider()
                     st.markdown("### 💾 Archivos Listos para Descargar")
                     
-                    # Crear columnas dinámicamente según hojas disponibles
+                    # Calcular número de botones de descarga
                     num_descargas = 0
                     if df_1p3p_procesado is not None:
-                        num_descargas += 1  # solo 1 archivo para 1P-3P
+                        num_descargas += 1  # archivo homologado 1P-3P
                     if df_4p5s_procesado is not None:
-                        num_descargas += 2  # archivo sin notas + evaluador para 4P-5S
+                        num_descargas += 1  # archivo homologado 4P-5S
+                    # Siempre hay 1 archivo evaluador (puede tener 1 o 2 hojas)
+                    num_descargas += 1
                     
                     # Diseño dinámico
-                    if num_descargas == 1:
-                        cols_descarga = st.columns([1, 1])  # descarga + paso siguiente
-                    else:
-                        cols_descarga = st.columns(min(num_descargas, 3))
-
+                    cols_descarga = st.columns(min(num_descargas, 3))
                     col_idx = 0
                     
-                    # Descargas para 1P-3P
+                    # Descargas para 1P-3P (archivo homologado)
                     if df_1p3p_procesado is not None:
                         with cols_descarga[col_idx]:
-                            # Para 1P-3P (no hay NOTAS VIGESIMALES 75% ni PROMEDIO)
                             df_sin_notas_1p3p = df_1p3p_procesado.drop(columns=["IDENTIFICADOR", "NRO."], errors="ignore")
                             df_sin_notas_1p3p["NOTA VIGESIMAL"] = df_sin_notas_1p3p["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
                             buffer_1p3p = guardar_con_formato_original(
@@ -1503,69 +1611,80 @@ elif st.session_state.paso_actual == 2:
                             )
                         col_idx += 1
                     
-                    # Descargas para 4P-5S
+                    # Descargas para 4P-5S (archivo homologado)
                     if df_4p5s_procesado is not None:
-                        if col_idx < len(cols_descarga):
-                            with cols_descarga[col_idx]:
-                                df_sin_notas_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR", "NRO.", "NOTAS VIGESIMALES 75%", "PROMEDIO"], errors="ignore")
-                                df_sin_notas_4p5s["NOTA VIGESIMAL"] = df_sin_notas_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
-                                buffer_4p5s = guardar_con_formato_original(
-                                    df_procesado=df_sin_notas_4p5s,
-                                    archivo_original_bytes=st.session_state.archivo2_bytes,
-                                    nombre_hoja="4P-5S",
-                                    fila_cabecera=st.session_state.archivo2_4p5s_fila_cabecera
-                                )
-                                st.download_button(
-                                    label="📥 4P-5S Homologado",
-                                    data=buffer_4p5s,
-                                    file_name=f"{st.session_state.nombre_colegio}_4P-5S_RV.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    use_container_width=True
-                                )
+                        with cols_descarga[col_idx]:
+                            df_sin_notas_4p5s = df_4p5s_procesado.drop(columns=["IDENTIFICADOR", "NRO.", "NOTAS VIGESIMALES 75%", "PROMEDIO"], errors="ignore")
+                            df_sin_notas_4p5s["NOTA VIGESIMAL"] = df_sin_notas_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
+                            buffer_4p5s = guardar_con_formato_original(
+                                df_procesado=df_sin_notas_4p5s,
+                                archivo_original_bytes=st.session_state.archivo2_bytes,
+                                nombre_hoja="4P-5S",
+                                fila_cabecera=st.session_state.archivo2_4p5s_fila_cabecera
+                            )
+                            st.download_button(
+                                label="📥 4P-5S Homologado",
+                                data=buffer_4p5s,
+                                file_name=f"{st.session_state.nombre_colegio}_4P-5S_RV.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
                         col_idx += 1
-                        
-                        if col_idx < len(cols_descarga):
-                            with cols_descarga[col_idx]:
-                                # Full join entre archivo1_df y archivo2_4p5s_df
-                                df_evaluador = crear_archivo_evaluador(
-                                    st.session_state.archivo1_df,
-                                    df_4p5s_procesado
-                                )
-                                
-                                # Eliminar columna IDENTIFICADOR y preparar para descarga
-                                df_eval_4p5s = df_evaluador.drop(columns=["IDENTIFICADOR"], errors="ignore") #, "NRO."
-                                df_eval_4p5s["NOTA VIGESIMAL"] = df_eval_4p5s["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
-                                buffer_eval_4p5s = guardar_con_formato_original(
-                                    df_procesado=df_eval_4p5s,
-                                    archivo_original_bytes=st.session_state.archivo2_bytes,
-                                    nombre_hoja="4P-5S",
-                                    fila_cabecera=st.session_state.archivo2_4p5s_fila_cabecera,
-                                    agregar_columnas_nuevas=True
-                                )
-                                
-                                st.download_button(
-                                    label="📥 4P-5S Evaluador",
-                                    data=buffer_eval_4p5s,
-                                    file_name=f"{st.session_state.nombre_colegio}_4P-5S_evaluador.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    use_container_width=True
-                                )
                     
-                    # --- Si solo hay un botón ---
-                    if num_descargas == 1:
-                        with cols_descarga[1]:
-                            if st.button("✅ Finalizar Proceso", type="primary", use_container_width=True):
-                                st.session_state.paso_actual = 3
-                                st.rerun()
-
-                    # --- Si hay varios botones ---
-                    else:
-                        st.divider()
-                        col1, col2, col3 = st.columns([1, 1, 2])
-                        with col1:
-                            if st.button("✅ Finalizar Proceso", type="primary", use_container_width=True):
-                                st.session_state.paso_actual = 3
-                                st.rerun()
+                    # ARCHIVO EVALUADOR ÚNICO (con todas las hojas necesarias)
+                    with cols_descarga[col_idx]:
+                        # Combinar ambos DataFrames procesados para hacer UN SOLO merge
+                        df_merge_completo = pd.concat([
+                            df_1p3p_procesado if df_1p3p_procesado is not None else pd.DataFrame(),
+                            df_4p5s_procesado if df_4p5s_procesado is not None else pd.DataFrame()
+                        ], ignore_index=True)
+                        
+                        # Crear evaluadores separados por grado
+                        df_eval_1p3p, df_eval_4p5s = crear_archivo_evaluador(
+                            st.session_state.archivo1_df,
+                            df_merge_completo
+                        )
+                        
+                        # Preparar diccionario de hojas para el archivo evaluador
+                        dict_hojas_evaluador = {}
+                        
+                        if len(df_eval_1p3p) > 0 and df_1p3p_procesado is not None:
+                            df_eval_1p3p_final = df_eval_1p3p.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                            df_eval_1p3p_final["NOTA VIGESIMAL"] = df_eval_1p3p_final["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
+                            dict_hojas_evaluador["1P-3P"] = {
+                                'df': df_eval_1p3p_final,
+                                'fila_cabecera': st.session_state.archivo2_1p3p_fila_cabecera
+                            }
+                        
+                        if len(df_eval_4p5s) > 0 and df_4p5s_procesado is not None:
+                            df_eval_4p5s_final = df_eval_4p5s.drop(columns=["IDENTIFICADOR"], errors="ignore")
+                            df_eval_4p5s_final["NOTA VIGESIMAL"] = df_eval_4p5s_final["NOTA VIGESIMAL"].astype(str).replace('NAN', 'NP')
+                            dict_hojas_evaluador["4P-5S"] = {
+                                'df': df_eval_4p5s_final,
+                                'fila_cabecera': st.session_state.archivo2_4p5s_fila_cabecera
+                            }
+                        
+                        # Guardar archivo evaluador con todas las hojas
+                        buffer_evaluador = guardar_evaluador_con_multiples_hojas(
+                            archivo_original_bytes=st.session_state.archivo2_bytes,
+                            dict_hojas_procesadas=dict_hojas_evaluador
+                        )
+                        
+                        st.download_button(
+                            label="📥 Archivo Evaluador",
+                            data=buffer_evaluador,
+                            file_name=f"{st.session_state.nombre_colegio}_evaluador.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+                    
+                    # Botón de finalización
+                    st.divider()
+                    col1, col2, col3 = st.columns([1, 1, 2])
+                    with col1:
+                        if st.button("✅ Finalizar Proceso", type="primary", use_container_width=True):
+                            st.session_state.paso_actual = 3
+                            st.rerun()
                 
                 else:
                     st.warning("⚠️ Detección manual necesaria")
