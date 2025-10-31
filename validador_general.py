@@ -653,7 +653,7 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_procesado):
     
     return df_1p3p, df_4p5s
 
-def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_hoja, fila_cabecera, agregar_columnas_nuevas=False):
+def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_hoja, fila_cabecera, agregar_columnas_nuevas=False, solo_hoja_especificada=False):
     """
     Preserva el formato del archivo original y actualiza solo los datos procesados
     
@@ -674,6 +674,13 @@ def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_ho
         ws = wb.active
     else:
         ws = wb[nombre_hoja]
+
+    # Si solo_hoja_especificada=True, eliminar todas las demás hojas
+    if solo_hoja_especificada:
+      hoja_a_mantener = ws.title
+      hojas_a_eliminar = [sheet for sheet in wb.sheetnames if sheet != hoja_a_mantener]
+      for hoja in hojas_a_eliminar:
+          wb.remove(wb[hoja])
     
     # Convertir fila_cabecera de pandas (base 0) a openpyxl (base 1)
     fila_cabecera_excel = fila_cabecera + 1
@@ -724,7 +731,7 @@ def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_ho
                         horizontal=celda_referencia.alignment.horizontal,
                         vertical=celda_referencia.alignment.vertical
                     )
-    
+
     # Eliminar filas de datos antiguos (preservando cabecera y filas previas)
     if ws.max_row >= fila_inicio_datos:
         ws.delete_rows(fila_inicio_datos, ws.max_row - fila_inicio_datos + 1)
@@ -1600,7 +1607,8 @@ elif st.session_state.paso_actual == 2:
                                 df_procesado=df_sin_notas_1p3p,
                                 archivo_original_bytes=st.session_state.archivo2_bytes,
                                 nombre_hoja="1P-3P",
-                                fila_cabecera=st.session_state.archivo2_1p3p_fila_cabecera
+                                fila_cabecera=st.session_state.archivo2_1p3p_fila_cabecera,
+                                solo_hoja_especificada=True
                             )
                             st.download_button(
                                 label="📥 1P-3P Homologado",
@@ -1620,7 +1628,8 @@ elif st.session_state.paso_actual == 2:
                                 df_procesado=df_sin_notas_4p5s,
                                 archivo_original_bytes=st.session_state.archivo2_bytes,
                                 nombre_hoja="4P-5S",
-                                fila_cabecera=st.session_state.archivo2_4p5s_fila_cabecera
+                                fila_cabecera=st.session_state.archivo2_4p5s_fila_cabecera,
+                                solo_hoja_especificada=True
                             )
                             st.download_button(
                                 label="📥 4P-5S Homologado",
