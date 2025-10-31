@@ -572,7 +572,7 @@ def crear_archivo_evaluador(df_archivo1, df_archivo2_4p5s):
         elif row['_merge'] == 'right_only':  # Solo en archivo1
             return 'SN'
         else:  # 'left_only' - Solo en archivo2
-            return 'NA'
+            return 'RET' #NA
     
     df_evaluador['OBSERVACIONES'] = df_evaluador.apply(asignar_observacion, axis=1)
     
