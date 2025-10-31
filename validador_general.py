@@ -443,20 +443,24 @@ def validar_neurodiversidad(df, col_neuro="NEURODIVERSIDAD (SÍ/NO)"):
 
 def validar_fecha_nacimiento(df, col_fecha="NACIMIENTO (DD/MM/YYYY)"):
     """
-    Valida formato de fecha DD/MM/YYYY.
-    Retorna lista de errores.
+    Valida y formatea fechas al formato DD/MM/YYYY.
+    Retorna lista de errores y modifica el DataFrame.
     """
     errores = []
     
     for idx, row in df.iterrows():
-        fecha = str(row[col_fecha]).strip()
+        fecha_original = str(row[col_fecha]).strip()
         identificador = crear_identificador(df.loc[[idx]], "PATERNO", "MATERNO", "NOMBRES").iloc[0]
         
-        # Validar formato DD/MM/YYYY
-        if not pd.to_datetime(fecha, format="%d/%m/%Y", errors="coerce") is pd.NaT:
-            continue
+        # Intentar parsear la fecha con diferentes formatos comunes
+        fecha_parseada = pd.to_datetime(fecha_original, errors="coerce", dayfirst=True)
+        
+        if pd.isna(fecha_parseada):
+            errores.append(f"Fila {idx + 2}: Fecha inválida '{fecha_original}' - {identificador}")
         else:
-            errores.append(f"Fila {idx + 2}: Fecha inválida '{fecha}' - {identificador}")
+            # Formatear al formato deseado DD/MM/YYYY
+            fecha_formateada = fecha_parseada.strftime("%d/%m/%Y")
+            df.at[idx, col_fecha] = fecha_formateada
     
     return errores
 
