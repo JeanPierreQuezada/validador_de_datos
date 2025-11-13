@@ -396,7 +396,7 @@ def validar_sexo(df, col_sexo="SEXO (M/F)"):
     errores = []
     df[col_sexo] = df[col_sexo].astype(str).str.strip().str.upper()
     
-    # NUEVA LÓGICA: Reemplazar valores vacíos o inválidos por inferencia basada en nombre
+    # Reemplazar valores vacíos o inválidos por inferencia basada en nombre
     mask_vacios_invalidos = ~df[col_sexo].isin(SEXO_VALIDO)
     
     if mask_vacios_invalidos.any():
@@ -1305,7 +1305,7 @@ with tab1:
                                 # Mostrar preview
                                 st.markdown("### 📊 Vista Previa de Datos")
                                 st.info(f"Total de registros: {len(df)}")
-                                st.dataframe(df.head(10), use_container_width=True)
+                                st.dataframe(df.head(10), use_container_width=True, hide_index=True)
                             
                             # Botones de acción
                             col1, col2 = st.columns(2)
@@ -1444,7 +1444,7 @@ with tab1:
                                         # Mostrar preview
                                         st.markdown("### 📊 Vista Previa de Datos")
                                         st.info(f"Total de registros: {len(df)}")
-                                        st.dataframe(df.head(10), use_container_width=True)
+                                        st.dataframe(df.head(10), use_container_width=True, hide_index=True)
                                     
                                     # Botones de acción
                                     col1, col2 = st.columns(2)
@@ -1687,7 +1687,7 @@ with tab1:
                                 
                                 with st.expander("Vista previa 1P-3P", expanded=False):
                                     st.info(f"Total de registros: {len(df_1p3p)}")
-                                    st.dataframe(df_1p3p, use_container_width=True)
+                                    st.dataframe(df_1p3p, use_container_width=True, hide_index=True)
                         else:
                             st.error("❌ Error de cabecera en la hoja 1P-3P")
                             st.warning("⚠️ No se pudo detectar cabecera automáticamente en 1P-3P")
@@ -1835,6 +1835,11 @@ with tab1:
                                 st.session_state.archivo2_4p5s_df.insert(0, 'Nro.', range(1, len(st.session_state.archivo2_4p5s_df) + 1))
                                 
                                 df_4p5s_procesado = df2
+
+                                with st.expander("Vista previa 4P-5S", expanded=False):
+                                    st.info(f"Total de registros: {len(df2)}")
+                                    st.dataframe(df2, use_container_width=True, hide_index=True)
+                                    
                         else:
                             st.error("❌ Error de cabecera en la hoja 4P-5S")
                             st.warning("⚠️ No se pudo detectar cabecera automáticamente en 4P-5S")
@@ -2070,7 +2075,7 @@ with tab2:
             
             if st.session_state.comparador_archivo_base:
                 with st.expander("👁️ Vista previa - Archivo BASE"):
-                    st.dataframe(st.session_state.comparador_archivo_base['df'].head(10))
+                    st.dataframe(st.session_state.comparador_archivo_base['df'].head(10), hide_index=True)
     
     # COLUMNA DERECHA: Archivo a Revisar
     with col_der:
@@ -2116,7 +2121,7 @@ with tab2:
             
             if st.session_state.comparador_archivo_revisar:
                 with st.expander("👁️ Vista previa - Archivo A REVISAR"):
-                    st.dataframe(st.session_state.comparador_archivo_revisar['df'].head(10))
+                    st.dataframe(st.session_state.comparador_archivo_revisar['df'].head(10), hide_index=True)
     
     # SECCIÓN DE COMPARACIÓN
     st.divider()
