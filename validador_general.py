@@ -74,14 +74,14 @@ if "cursos_equivalentes" not in st.session_state:
     "DE LA IDEA AL EMPRENDIMIENTO",
     "DESARROLLO DE APLICACIONES MÓVILES",
     "DESARROLLO WEB",
-    "DISEÑO CREATIVO CON INTELIGENCIA ARTIFICIAL (IA)",
+    "DISEÑO CREATIVO CON INTELIGENCIA ARTIFICIAL",
     "DISEÑO WEB",
     "EDICIÓN DE AUDIO",
     "EDICIÓN DE VIDEO",
     "EXCEL EXPERT SPECIALIST",
     "EXCEL INTERMEDIATE SPECIALIST",
     "EXCEL PROFICIENT SPECIALIST",
-    "EXPLORANDO LA INTELIGENCIA ARTIFICIAL (IA)",
+    "EXPLORANDO LA INTELIGENCIA ARTIFICIAL",
     "FINANZAS PERSONALES",
     "GESTIÓN DE DATA CON GOOGLE SHEETS & LOCKER STUDIO",
     "GESTIÓN DE DATA CON MS EXCEL Y POWER BI",
@@ -91,14 +91,14 @@ if "cursos_equivalentes" not in st.session_state:
     "GOOGLE SHEETS AVANZADO",
     "GOOGLE SHEETS BÁSICO",
     "GOOGLE SHEETS INTERMEDIO",
-    "GOOGLE SLIDES PRESENTACIONES DE IMPACTO",
     "HABILIDADES BLANDAS",
-    "INNOVACIÓN DIGITAL CON INTELIGENCIA ARTIFICIAL (IA)",
+    "INNOVACIÓN DIGITAL CON INTELIGENCIA ARTIFICIAL",
     "LEARNING FOR BEGINNERS 1",
     "LEARNING FOR BEGINNERS 2",
     "MARKETING DIGITAL",
     "MARKETING PERSONAL",
-    "PRESENTACIONES DE IMPACTO",
+    "PRESENTACIONES DE IMPACTO GOOGLE SLIDES",
+    "PRESENTACIONES DE IMPACTO POWERPOINT",
     "PROGRAMACIÓN VISUAL KODU PLANET I",
     "PROGRAMACIÓN VISUAL KODU PLANET II",
     "PROGRAMACIÓN VISUAL KODU PLANET III",
@@ -138,6 +138,17 @@ if 'zip_buffer' not in st.session_state:
     st.session_state.zip_buffer = None
 if 'tab5_reset_counter' not in st.session_state:
     st.session_state.tab5_reset_counter = 0
+
+if 'tab6_nomina_antigua_df' not in st.session_state:
+    st.session_state.tab6_nomina_antigua_df = None
+if 'tab6_nomina_nueva_df' not in st.session_state:
+    st.session_state.tab6_nomina_nueva_df = None
+if 'tab6_resultado' not in st.session_state:
+    st.session_state.tab6_resultado = None
+if 'tab6_comparacion_realizada' not in st.session_state:
+    st.session_state.tab6_comparacion_realizada = False
+if 'tab6_reset_counter' not in st.session_state:
+    st.session_state.tab6_reset_counter = 0
 
 COLUMNAS_ARCHIVO1 = [
     "NRO.", "PATERNO", "MATERNO", "NOMBRES", "NACIMIENTO (DD/MM/YYYY)", "SEXO (M/F)",
@@ -185,70 +196,80 @@ MAPEO_SECCIONES = {
     "Única": "U"
 }
 LISTA_COLEGIOS = [
-    "Colegio Ateneo la Molina",
-    "Colegio Bárbara Dachille",
-    "Colegio Bautista Filadelfia-Comas",
-    "Colegio Cepeban",
-    "Colegio Cervantes School",
-    "Colegio Divino Maestro de Pro",
-    "Colegio Divino Niño Jesús",
-    "Colegio Don Bosco - San Luis ",
-    "Colegio Dora Mayer",
-    "Colegio El Carmelo",
-    "Colegio Giordano Bruno",
-    "Colegio Gracias Jesús",
-    "Colegio Ingeniero Carlos Lisson Beingolea",
-    "Colegio Innova America High School",
-    "Colegio Joseph Novak",
-    "Colegio Loris Malaguzzi",
-    "Colegio Los Rosales de Santa Rosa",
-    "Colegio Maestro Redentor - Huancayo ",
-    "Colegio Mahatma Gandhi",
-    "Colegio Makarenko",
-    "Colegio María Inmaculada Concepción",
-    "Colegio Mashal School",
-    "Colegio Miguel Angel",
-    "Colegio My Home And School",
-    "Colegio Nuestra Señora Carmen de Palao",
-    "Colegio Parroquial San José",
-    "Colegio Redimer Jesús De Villa",
-    "Colegio San Francisco -Balconcillo ",
-    "Colegio San José de los Balnearios Del Sur",
-    "Colegio San Martincito de Porres",
-    "Colegio Santa Ana - Tacna",
-    "Colegio Santa Angela Merici",
-    "Colegio Santa María de Surco",
-    "Colegio Signos de La Fe La Salle - Trujillo ",
-    "Colegio Sor Querubina de San Pedro",
-    "Colegio Andino Huancayo",
-    "Colegio Andre Malraux",
-    "Colegio Antares",
-    "Colegio Divina Misericordia",
-    "Colegio Ingeniería Huancayo",
-    "Colegio Jesús el Nazareno",
-    "Colegio Jesús María - San Martín de Porres",
-    "Colegio Lima International School Of Tomorrow",
-    "Colegio Lincoln del Triunfo",
-    "Colegio Luz Casanova",
-    "Colegio Magister",
-    "Colegio María Montessori de Copacabana",
-    "Colegio María Rafols",
-    "Colegio Melvin Jones",
-    "Colegio Nuestra Señora del Buen Consejo",
-    "Colegio Patrocinio San José",
-    "Colegio Peruano Japones La Victoria",
-    "Colegio Play School Huaral",
-    "Colegio San Antonio de Padua",
-    "Colegio San Antonio María Claret",
-    "Colegio San Charbel",
-    "Colegio San Francisco de Borja",
-    "Colegio San Germán",
-    "Colegio San José Hermanos Maristas Callao",
-    "Colegio San Mateo Anglicano",
-    "Colegio Santa Ana - Lima",
-    "Colegio Santa Angela",
-    "Colegio Santa Anita",
-    "Colegio Santa Rosa de Lima"
+    "COLEGIO ANDINO",
+    "COLEGIO ANDRE MALRAUX",
+    "COLEGIO ANNIES SCHOOL",
+    "COLEGIO ANTARES",
+    "COLEGIO ATENEO",
+    "COLEGIO BARBARA D'ACHILLE",
+    "COLEGIO BUENAS NUEVAS",
+    "COLEGIO CEPEBAN",
+    "COLEGIO CERVANTES SCHOOL",
+    "COLEGIO CRISTIANO PIONERO",
+    "COLEGIO DIVINA MISERICORDIA",
+    "COLEGIO DIVINO MAESTRO DE PRO",
+    "COLEGIO DIVINO NIÑO JESÚS",
+    "COLEGIO DON BOSCO",
+    "COLEGIO DORA MAYER",
+    "COLEGIO EL CARMELO",
+    "COLEGIO EL SEMBRADOR",
+    "COLEGIO ELIM",
+    "COLEGIO GIORDANO BRUNO",
+    "COLEGIO GRACIAS JESUS",
+    "COLEGIO INGENIERÍA",
+    "COLEGIO INTEGRA COLLEGE",
+    "COLEGIO JESÚS DEL PROGRESO",
+    "COLEGIO JESÚS EL NAZARENO",
+    "COLEGIO JESÚS MARÍA",
+    "COLEGIO JORDAN DE JESUS",
+    "COLEGIO JOSE MARIA ARGUEDAS",
+    "COLEGIO JOSEPH NOVAK",
+    "COLEGIO JUAN ENRIQUE NEWMAN",
+    "COLEGIO LISOFT",
+    "COLEGIO LISSON",
+    "COLEGIO LORIS MALAGUZZI",
+    "COLEGIO LOS ROSALES DE SANTA ROSA",
+    "COLEGIO LUZ CASANOVA",
+    "COLEGIO MAESTRO REDENTOR",
+    "COLEGIO MAGISTER",
+    "COLEGIO MAKARENKO",
+    "COLEGIO MARCELINO CHAMPAGNAT",
+    "COLEGIO MARIA DE LAS MERCEDES (MIRAFLORES)",
+    "COLEGIO MARIA DE LAS MERCEDES (LA VICTORIA)",
+    "COLEGIO MARIA RAFOLS",
+    "COLEGIO MARISTAS",
+    "COLEGIO MASHAL SCHOOL",
+    "COLEGIO MELVIN JONES",
+    "COLEGIO MI AMIGO JESUS",
+    "COLEGIO MIGUEL ANGEL",
+    "COLEGIO MUNDIAL",
+    "COLEGIO MY HOME AND SCHOOL",
+    "COLEGIO NUESTRA SEÑORA DEL CARMEN DE PALAO",
+    "COLEGIO NUESTRA SEÑORA DEL BUEN CONSEJO",
+    "COLEGIO PARROQUIAL SAN JOSE",
+    "COLEGIO PERUANO JAPONÉS LA VICTORIA",
+    "COLEGIO PLAY SCHOOL",
+    "COLEGIO REDIMER JESUS",
+    "COLEGIO SAN ANTONIO DE PADUA",
+    "COLEGIO SAN ANTONIO MARÍA CLARET",
+    "COLEGIO SAN CHARBEL",
+    "COLEGIO SAN FRANCISCO DE BORJA",
+    "COLEGIO SAN GERMAN",
+    "COLEGIO SAN IGNACIO DE LOYOLA (MIRAFLORES)",
+    "COLEGIO SAN IGNACIO DE LOYOLA (VILLA)",
+    "COLEGIO SAN JUAN DE BARRANCO",
+    "COLEGIO SAN MARTINCITO",
+    "COLEGIO SANTA ANA DE LOS JARDINES",
+    "COLEGIO SANTA ANA INGENIERIA",
+    "COLEGIO SANTA ANA (LIMA)",
+    "COLEGIO SANTA ANA (TACNA)",
+    "COLEGIO SANTA ANGELA MERICI",
+    "COLEGIO SANTA ANITA",
+    "COLEGIO SANTA MARIA DE SURCO",
+    "COLEGIO SHONA",
+    "COLEGIO SANTA ROSA DE LIMA",
+    "COLEGIO TRAVESURAS TRAZOS Y COLORES",
+    "COLEGIO VIRGEN DEL ROSARIO YUNGAY"
 ]
 
 CONFIG_INSIGNIAS = {
@@ -749,7 +770,11 @@ def guardar_con_formato_original(df_procesado, archivo_original_bytes, nombre_ho
         if 'NOMBRES' in df_procesado.columns or 'NOMBRE' in df_procesado.columns:
             columnas_orden.append('NOMBRES' if 'NOMBRES' in df_procesado.columns else 'NOMBRE')
         df_procesado = df_procesado.sort_values(columnas_orden).reset_index(drop=True)
-    
+
+    # Renumerar columna NRO. en orden ascendente si existe
+    if 'NRO.' in df_procesado.columns:
+        df_procesado['NRO.'] = range(1, len(df_procesado) + 1)
+
     wb = load_workbook(BytesIO(archivo_original_bytes))
     
     if nombre_hoja is None or nombre_hoja not in wb.sheetnames:
@@ -858,6 +883,11 @@ def guardar_evaluador_con_multiples_hojas(archivo_original_bytes, dict_hojas_pro
             if 'NOMBRES' in df_procesado.columns or 'NOMBRE' in df_procesado.columns:
                 columnas_orden.append('NOMBRES' if 'NOMBRES' in df_procesado.columns else 'NOMBRE')
             df_procesado = df_procesado.sort_values(columnas_orden).reset_index(drop=True)
+
+        # Renumerar columna NRO. en orden ascendente si existe
+        if 'NRO.' in df_procesado.columns:
+            df_procesado['NRO.'] = range(1, len(df_procesado) + 1)
+
         fila_cabecera = datos['fila_cabecera']
         
         if nombre_hoja not in wb.sheetnames:
@@ -1528,7 +1558,11 @@ def guardar_certificado_con_encabezado(archivo_original_bytes, dict_hojas_proces
             if 'NOMBRES' in df_procesado.columns or 'NOMBRE' in df_procesado.columns:
                 columnas_orden.append('NOMBRES' if 'NOMBRES' in df_procesado.columns else 'NOMBRE')
             df_procesado = df_procesado.sort_values(columnas_orden).reset_index(drop=True)
-        
+
+        # Renumerar columna NRO. en orden ascendente si existe
+        if 'NRO.' in df_procesado.columns:
+            df_procesado['NRO.'] = range(1, len(df_procesado) + 1)
+
         ws_nueva = wb_nuevo.create_sheet(title=nombre_hoja)
 
         celda_estilo_referencia = None
@@ -2454,11 +2488,298 @@ def draw_centered_text(draw, text, x_position, y_position, font, fill="white"):
 
 st.title("📊 Sistema de Validación de Archivos")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Validador de Nóminas", "⚖️ Validador Evaluaciones de Alumnos", "📑 Generador de Planilla de Resultados", "🎓 Generador de Diplomas, Certificados y Constancias", "🏅 Generador de Insignias (Docente y Alumno)"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔄 Comparación de Nóminas", "🔍 Validador de Notas de Laboratorio", "⚖️ Validador Evaluaciones de Alumnos", "📑 Emisión de Resultados de Evaluación", "🎓 Emisión de Diplomas, Certificados y Constancias", "🏅 Emisión de Insignias (Docente y Alumno)"])
+
+# EL ORDEN SE MODIFICARÁ POR TEMAS DE FLUJO PERO SE MANTENDRÁ EL NOMBRE DE LAS VARIABLES COMO ESTÁN PARA EVITAR ERRORES EN EL DESARROLLO.
+
+# TAB 6: COMPARACIÓN DE NÓMINAS
+with tab1:
+    st.markdown("## 🔄 Comparación de Nóminas")
+    st.markdown("### Detecta diferencias entre dos versiones del archivo de Nómina")
+
+    st.markdown("""
+    <div style='background-color: #172c42; color: #FFFFFF; padding: 20px; border-radius: 10px; margin-bottom: 20px;'>
+        <h4>📋 ¿Cómo funciona esta herramienta?</h4>
+        <p>Sube dos versiones del archivo de <strong>Nómina de Alumnos</strong> (el mismo formato que usa el Tab 🔍 Validador de Notas de Laboratorio).
+        El sistema comparará ambas nóminas e identificará:</p>
+        <ul>
+            <li>✅ <strong>Alumnos que permanecen</strong> en ambas nóminas</li>
+            <li>🆕 <strong>Alumnos nuevos</strong> (presentes en la nueva nómina, ausentes en la antigua)</li>
+            <li>❌ <strong>Alumnos retirados</strong> (presentes en la antigua nómina, ausentes en la nueva)</li>
+        </ul>
+        <p><em>⚠️ Disclaimer: Es responsabilidad del usuario asegurarse de subir correctamente la nómina antigua como "Archivo Previo" y la nómina nueva como "Archivo Actual".</em></p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    def cargar_nomina_para_comparacion(archivo_subido, etiqueta):
+        try:
+            df_original = pd.read_excel(archivo_subido, header=None)
+            fila_detectada = detectar_cabecera_automatica(df_original, COLUMNAS_ARCHIVO1)
+
+            if fila_detectada is None:
+                return None, False, f"❌ No se pudo detectar la cabecera automáticamente en {etiqueta}. Verifica que el archivo tenga las columnas requeridas."
+
+            df = pd.read_excel(archivo_subido, header=fila_detectada)
+            columnas_norm = {c.strip().lower(): c for c in df.columns}
+            cols_a_usar = []
+            for col_req in COLUMNAS_ARCHIVO1:
+                col_norm = col_req.strip().lower()
+                if col_norm in columnas_norm:
+                    cols_a_usar.append(columnas_norm[col_norm])
+
+            if len(cols_a_usar) < len(COLUMNAS_ARCHIVO1):
+                faltantes = [c for c in COLUMNAS_ARCHIVO1 if c.strip().lower() not in columnas_norm]
+                return None, False, f"❌ {etiqueta}: Faltan columnas requeridas: {', '.join(faltantes)}"
+
+            df = df[cols_a_usar]
+            df.columns = [col.upper() for col in COLUMNAS_ARCHIVO1]
+            df = limpiar_filas_vacias(df, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
+
+            if df.empty:
+                return None, False, f"❌ {etiqueta}: El archivo no contiene datos válidos."
+
+            df = convertir_numericas_a_entero(df, columnas=["NRO.","GRADO"])
+            df = homologar_dataframe(df)
+            df, _ = validar_y_mapear_grados(df, "GRADO")
+            df["IDENTIFICADOR"] = crear_identificador(df, "PATERNO", "MATERNO", "NOMBRES")
+
+            return df, True, f"✅ {etiqueta} cargada correctamente ({len(df)} registros)"
+
+        except Exception as e:
+            return None, False, f"❌ Error al procesar {etiqueta}: {str(e)}"
+
+    def comparar_nominas(df_antigua, df_nueva):
+        """
+        Compara dos DataFrames de nómina usando IDENTIFICADOR como clave.
+        Retorna un dict con los resultados separados.
+        """
+        ids_antigua = set(df_antigua["IDENTIFICADOR"].str.strip().str.upper())
+        ids_nueva = set(df_nueva["IDENTIFICADOR"].str.strip().str.upper())
+
+        ids_permanecen = ids_antigua & ids_nueva
+        ids_nuevos = ids_nueva - ids_antigua
+        ids_retirados = ids_antigua - ids_nueva
+
+        df_permanecen = df_nueva[df_nueva["IDENTIFICADOR"].str.strip().str.upper().isin(ids_permanecen)].copy()
+        df_nuevos = df_nueva[df_nueva["IDENTIFICADOR"].str.strip().str.upper().isin(ids_nuevos)].copy()
+        df_retirados = df_antigua[df_antigua["IDENTIFICADOR"].str.strip().str.upper().isin(ids_retirados)].copy()
+
+        return {
+            "permanecen": df_permanecen,
+            "nuevos": df_nuevos,
+            "retirados": df_retirados
+        }
+
+    def generar_excel_comparacion(resultado):
+        """
+        Genera un archivo Excel con tres hojas: Permanecen, Alumnos Nuevos, Retirados.
+        """
+        wb = Workbook()
+
+        hojas = [
+            ("Permanecen", resultado["permanecen"], "17375E"),
+            ("Alumnos Nuevos", resultado["nuevos"], "1E6B3A"),
+            ("Retirados", resultado["retirados"], "7B1818"),
+        ]
+
+        primera = True
+        for nombre_hoja, df_hoja, color_cabecera in hojas:
+            if primera:
+                ws = wb.active
+                ws.title = nombre_hoja
+                primera = False
+            else:
+                ws = wb.create_sheet(title=nombre_hoja)
+
+            df_export = df_hoja.drop(columns=["IDENTIFICADOR"], errors="ignore").copy()
+            df_export = df_export.fillna("").replace(["NAN", "nan", "NaN"], "")
+
+            header_fill = PatternFill(start_color=color_cabecera, end_color=color_cabecera, fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True, size=10)
+            header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+            for col_idx, col_name in enumerate(df_export.columns, start=1):
+                celda = ws.cell(row=1, column=col_idx)
+                celda.value = str(col_name).upper()
+                celda.fill = header_fill
+                celda.font = header_font
+                celda.alignment = header_alignment
+
+            for r_idx, row in enumerate(dataframe_to_rows(df_export, index=False, header=False), start=2):
+                for c_idx, value in enumerate(row, start=1):
+                    celda = ws.cell(row=r_idx, column=c_idx)
+                    celda.value = value if value != "" else None
+                    celda.alignment = Alignment(horizontal="center", vertical="center")
+
+            for col_idx in range(1, len(df_export.columns) + 1):
+                col_letter = ws.cell(row=1, column=col_idx).column_letter
+                ws.column_dimensions[col_letter].width = 18
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+
+    reset_key = st.session_state.tab6_reset_counter
+
+    col_upload_1, col_upload_2 = st.columns(2)
+
+    with col_upload_1:
+        st.markdown("#### 📂 Nómina Antigua (Archivo Previo)")
+        archivo_antiguo = st.file_uploader(
+            "Sube la nómina Previo",
+            type=["xls", "xlsx"],
+            key=f"tab6_antigua_{reset_key}",
+            help="Este es el archivo más antiguo de nómina"
+        )
+
+    with col_upload_2:
+        st.markdown("#### 📂 Nómina Nueva (Archivo Actual)")
+        archivo_nuevo = st.file_uploader(
+            "Sube la nómina Actual",
+            type=["xls", "xlsx"],
+            key=f"tab6_nueva_{reset_key}",
+            help="Este es el archivo más reciente de nómina"
+        )
+
+    if archivo_antiguo is not None and archivo_nuevo is not None:
+        if not st.session_state.tab6_comparacion_realizada:
+            with st.spinner("🔍 Validando y cargando las nóminas..."):
+                df_antigua, ok1, msg1 = cargar_nomina_para_comparacion(archivo_antiguo, "Nómina Previo")
+                df_nueva, ok2, msg2 = cargar_nomina_para_comparacion(archivo_nuevo, "Nómina Actual")
+
+            col_st1, col_st2 = st.columns(2)
+            with col_st1:
+                if ok1:
+                    st.success(msg1)
+                else:
+                    st.error(msg1)
+            with col_st2:
+                if ok2:
+                    st.success(msg2)
+                else:
+                    st.error(msg2)
+
+            if ok1 and ok2:
+                # Detectar duplicados en cada nómina
+                def detectar_duplicados(df, etiqueta):
+                    duplicados = df[df.duplicated(subset=["IDENTIFICADOR"], keep=False)].copy()
+                    if not duplicados.empty:
+                        duplicados = duplicados.sort_values("IDENTIFICADOR")
+                        return duplicados
+                    return pd.DataFrame()
+
+                dups_antigua = detectar_duplicados(df_antigua, "Nómina Antigua")
+                dups_nueva = detectar_duplicados(df_nueva, "Nómina Nueva")
+
+                if not dups_antigua.empty or not dups_nueva.empty:
+                    st.warning("⚠️ Se detectaron alumnos duplicados en uno o más archivos. Revísalos antes de continuar — los resultados de la comparación podrían no ser exactos.")
+
+                    if not dups_antigua.empty:
+                        with st.expander(f"📋 Duplicados en Nómina Antigua ({len(dups_antigua)} filas afectadas)", expanded=True):
+                            st.dataframe(
+                                dups_antigua.drop(columns=["IDENTIFICADOR"], errors="ignore"),
+                                use_container_width=True,
+                                hide_index=True
+                            )
+
+                    if not dups_nueva.empty:
+                        with st.expander(f"📋 Duplicados en Nómina Nueva ({len(dups_nueva)} filas afectadas)", expanded=True):
+                            st.dataframe(
+                                dups_nueva.drop(columns=["IDENTIFICADOR"], errors="ignore"),
+                                use_container_width=True,
+                                hide_index=True
+                            )
+
+                    st.info("Puedes corregir los archivos y volver a subirlos, o continuar igual asumiendo que los duplicados son intencionales.")
+                    if not st.button("▶️ Continuar de todas formas", type="primary", use_container_width=True, key="btn_tab6_continuar_con_dups"):
+                        st.stop()
+
+                st.session_state.tab6_nomina_antigua_df = df_antigua
+                st.session_state.tab6_nomina_nueva_df = df_nueva
+
+                resultado = comparar_nominas(df_antigua, df_nueva)
+                st.session_state.tab6_resultado = resultado
+                st.session_state.tab6_comparacion_realizada = True
+                st.rerun()
+            else:
+                st.info("Por favor corrige los errores en los archivos y vuelve a subirlos.")
+
+    if st.session_state.tab6_comparacion_realizada and st.session_state.tab6_resultado is not None:
+        resultado = st.session_state.tab6_resultado
+
+        n_perm = len(resultado["permanecen"])
+        n_nuevos = len(resultado["nuevos"])
+        n_ret = len(resultado["retirados"])
+
+        st.divider()
+        st.markdown("### 📊 Resumen de la Comparación")
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            st.metric("✅ Alumnos que permanecen", n_perm)
+        with col_m2:
+            st.metric("🆕 Alumnos nuevos", n_nuevos)
+        with col_m3:
+            st.metric("❌ Alumnos retirados", n_ret)
+
+        st.divider()
+
+        # Vista previa: Permanecen
+        with st.expander(f"✅ Alumnos que permanecen ({n_perm})", expanded=False):
+            if n_perm > 0:
+                df_vp = resultado["permanecen"].drop(columns=["IDENTIFICADOR"], errors="ignore")
+                st.dataframe(df_vp, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay alumnos en común entre ambas nóminas.")
+
+        # Vista previa: Nuevos
+        with st.expander(f"🆕 Alumnos nuevos en la nómina nueva ({n_nuevos})", expanded=True):
+            if n_nuevos > 0:
+                df_vp = resultado["nuevos"].drop(columns=["IDENTIFICADOR"], errors="ignore")
+                st.dataframe(df_vp, use_container_width=True, hide_index=True)
+            else:
+                st.success("No hay alumnos nuevos; ambas nóminas tienen los mismos alumnos.")
+
+        # Vista previa: Retirados
+        with st.expander(f"❌ Alumnos retirados (ausentes en la nueva nómina) ({n_ret})", expanded=True):
+            if n_ret > 0:
+                df_vp = resultado["retirados"].drop(columns=["IDENTIFICADOR"], errors="ignore")
+                st.dataframe(df_vp, use_container_width=True, hide_index=True)
+            else:
+                st.success("No hay alumnos retirados; todos los alumnos de la nómina antigua siguen en la nueva.")
+
+        st.divider()
+        st.markdown("### 💾 Descargar Reporte de Comparación")
+        st.info("El archivo Excel contendrá tres hojas: **Permanecen**, **Alumnos Nuevos** y **Retirados**.")
+
+        buffer_reporte = generar_excel_comparacion(resultado)
+
+        col_dl, col_reset = st.columns(2)
+        with col_dl:
+            st.download_button(
+                label="📥 Descargar Reporte Excel",
+                data=buffer_reporte,
+                file_name="reporte_comparacion_nominas.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with col_reset:
+            if st.button("🔄 Nueva Comparación", use_container_width=True, key="btn_reset_tab6"):
+                st.session_state.tab6_nomina_antigua_df = None
+                st.session_state.tab6_nomina_nueva_df = None
+                st.session_state.tab6_resultado = None
+                st.session_state.tab6_comparacion_realizada = False
+                st.session_state.tab6_reset_counter += 1
+                st.rerun()
+
+    elif archivo_antiguo is None or archivo_nuevo is None:
+        if not st.session_state.tab6_comparacion_realizada:
+            st.info("👆 Sube ambos archivos de nómina para iniciar la comparación.")
 
 # TAB 1: VALIDADOR GENERAL
-with tab1:
-    st.markdown("## 🔍 Validador de Nóminas")
+with tab2:
+    st.markdown("## 🔍 Validador de Notas de Laboratorio")
     st.markdown("### Sistema de Homologación de Datos")
 
     mostrar_stepper(st.session_state.paso_actual)
@@ -2467,7 +2788,7 @@ with tab1:
         st.header("🏫 Paso 1: Información del Colegio")
 
         st.markdown("""
-            <div style='background-color: #78808C; padding: 20px; border-radius: 10px; margin-bottom: 20px;'>
+            <div style='background-color: #172c42; color: #FFFFFF; padding: 20px; border-radius: 10px; margin-bottom: 20px;'>
                 <h4>Bienvenido al sistema de validación</h4>
                 <p>Para comenzar, ingresa el Nombre del colegio. Este Nombre se usará para identificar los archivos descargables.</p>
             </div>
@@ -2552,7 +2873,7 @@ with tab1:
                                 st.error("❌ La hoja seleccionada no contiene datos válidos después de limpiar filas vacías")
                                 st.stop()
                             
-                            df = convertir_numericas_a_entero(df, columnas=["GRADO"])
+                            df = convertir_numericas_a_entero(df, columnas=["NRO.","GRADO"])
                             df = homologar_dataframe(df)
 
                             columnas_obligatorias = ["PATERNO", "MATERNO", "NOMBRES"]
@@ -2873,7 +3194,7 @@ with tab1:
                             df_1p3p = limpiar_filas_vacias(df_1p3p, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
 
                             if not df_1p3p.empty:
-                                df_1p3p = convertir_numericas_a_entero(df_1p3p, columnas=["GRADO", "NOTA VIGESIMAL 100%"])
+                                df_1p3p = convertir_numericas_a_entero(df_1p3p, columnas=["NRO.","GRADO", "NOTA VIGESIMAL 100%"])
                                 df_1p3p = homologar_dataframe(df_1p3p)
                                 columnas_obligatorias = ["PATERNO", "MATERNO", "NOMBRES"]
                                 filas_vacias = df_1p3p[df_1p3p[columnas_obligatorias].isnull().any(axis=1)]
@@ -2995,7 +3316,7 @@ with tab1:
                             df2 = limpiar_filas_vacias(df2, columnas_clave=["PATERNO", "MATERNO", "NOMBRES"])
 
                             if not df2.empty:
-                                df2 = convertir_numericas_a_entero(df2, columnas=["GRADO", "NOTA VIGESIMAL 25%"])
+                                df2 = convertir_numericas_a_entero(df2, columnas=["NRO.","GRADO", "NOTA VIGESIMAL 25%"])
                                 df2 = homologar_dataframe(df2)
                                 
                                 errores_validacion_4p5s = []
@@ -3777,7 +4098,7 @@ with tab1:
                 st.rerun()
 
 # TAB 2: COMPARADOR DE EVALUADORES
-with tab2:
+with tab3:
     st.markdown("## ⚖️ Validador Evaluaciones de Alumnos")
     st.markdown("""
                 **DESCRIPCIÓN:**
@@ -4446,8 +4767,8 @@ with tab2:
         st.rerun()
 
 # TAB 3: Generar Reporte PDF
-with tab3:
-    st.markdown("## 📑 Generador de Planilla de Resultados")
+with tab4:
+    st.markdown("## 📑 Emisión de Resultados de Evaluación")
     st.markdown("""
                 **DESCRIPCIÓN:**
                 
@@ -4665,8 +4986,8 @@ with tab3:
         st.rerun()
 
 # TAB 4: Generador de Certificados
-with tab4:
-    st.markdown("## 🎓 Generador de Diplomas, Certificados y Constancias")
+with tab5:
+    st.markdown("## 🎓 Emisión de Diplomas, Certificados y Constancias")
     st.markdown("""
                 **DESCRIPCIÓN:**
                 
@@ -4960,8 +5281,8 @@ with tab4:
         st.session_state.archivo_procesado = False
 
 # TAB 5: GENERADOR DE INSIGNIAS
-with tab5:
-    st.markdown("## 🏅 Generador de Insignias (Docente y Alumno)")
+with tab6:
+    st.markdown("## 🏅 Emisión de Insignias (Docente y Alumno)")
     st.markdown("""
                 **DESCRIPCIÓN:**
                 
