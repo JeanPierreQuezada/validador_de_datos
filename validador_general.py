@@ -4353,8 +4353,26 @@ with tab2:
             archivo_bytes_original = st.session_state.comparador_archivo_revisar['bytes']
 
             wb_original = load_workbook(BytesIO(archivo_bytes_original))
+            wb_valores = load_workbook(BytesIO(archivo_bytes_original), data_only=True)
             nombre_hoja = st.session_state.comparador_archivo_revisar['nombre_hoja']
             ws_original = wb_original[nombre_hoja]
+            ws_valores = wb_valores[nombre_hoja]
+
+            def _formatear_valor_rev(v):
+                """Entero sin decimales si es entero; caso contrario, redondeado a 2 decimales."""
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    return int(v) if float(v).is_integer() else round(float(v), 2)
+                return v
+
+            for fila_cells in ws_original.iter_rows():
+                for celda in fila_cells:
+                    if celda.data_type == 'f':
+                        valor_calculado = ws_valores[celda.coordinate].value
+                        celda.value = _formatear_valor_rev(valor_calculado)
+                        if isinstance(celda.value, float):
+                            celda.number_format = '0.00'
+                        elif isinstance(celda.value, int):
+                            celda.number_format = '0'
 
             fila_cabecera = st.session_state.comparador_archivo_revisar.get('fila_cabecera', 7) 
 
